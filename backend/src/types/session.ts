@@ -14,19 +14,37 @@ export type SessionEndCondition = {
 export type Player = {
   id: string;
   name: string;
-  card: BingoCard | null;
 };
 
+export type PlayerSessionState = {
+  card: BingoCard | null;
+  isReadyForStart: boolean;
+  hasActedThisRound: boolean;
+};
+
+export type RoundPhase =
+  | "waiting_for_ready"
+  | "waiting_for_host_start"
+  | "waiting_for_player_actions"
+  | "waiting_for_host_next_round"
+  | "finished";
+
 export type GameSession = {
-  status: SessionStatus;
+  id: string;
+  status: "waiting" | "in_progress" | "finished";
+  phase: RoundPhase;
   round: number;
+  currentDrawnNumber: number | null;
   drawnNumbers: number[];
   endReason: SessionEndReason;
   winners: string[];
   endCondition: SessionEndCondition;
+  playerStates: Record<string, PlayerSessionState>;
 };
 
-export type GameState = {
-  session: GameSession;
-  player: Player;
+export type Room = {
+  id: string;
+  hostPlayerId: string;
+  players: Player[];
+  currentSession: GameSession;
 };
