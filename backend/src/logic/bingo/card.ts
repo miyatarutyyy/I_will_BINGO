@@ -41,7 +41,7 @@ export const createBingoCard = (): BingoCard => {
       cells.push({
         positionId,
         value: null,
-        isOpened: true,
+        isOpened: false,
         isFree: true,
       });
     } else {
@@ -60,6 +60,21 @@ export const createBingoCard = (): BingoCard => {
   return { cells };
 };
 
+/*
+ *FREE を開く専用の関数
+ */
+export const openFreeCell = (card: BingoCard): BingoCard => {
+  const newCells = card.cells.map((cell) => {
+    if (!cell.isFree) return cell;
+    return { ...cell, isOpened: true };
+  });
+
+  return { cells: newCells };
+};
+
+/*
+ * 抽選された番号のセルを開く関数
+ */
 export const openCellByDrawnNumber = (
   card: BingoCard,
   drawnNumber: number,
