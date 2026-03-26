@@ -1,0 +1,597 @@
+* backend/ 仕様書
+
+この文書は、=/backend= 配下の現在の実装を基準にした仕様書です。
+理想仕様ではなく、=2026-03-27= 時点で実際に動作しているバックエンドの挙動をまとめています。
+
+今後 backend の仕様変更が発生した場合は、このファイルを更新し、下記の更新履歴に「いつ」「何を変更したか」を追記して管理します。
+
+* 更新履歴
+
+| 日付       | 更新内容 |
+|------------+----------|
+| 2026-03-27 | 初版作成。=backend/= の現行実装をもとに API、状態遷移、データ構造、SSE 配信仕様を整理した。 |
+
+* 1. 目的と役割
+
+このバックエンドは、オンラインビンゴゲームのルーム管理と進行管理を担当します。
+現時点で担当している責務は次の通りです。
+
+- ルーム作成
+- プレイヤー参加
+- 各プレイヤーのカード作成
+- ready 管理
+- ホストによるゲーム開始
+- 各ラウンドの抽選番号管理
+- 各プレイヤーのラウンド行動受付
+- ビンゴ判定とゲーム終了判定
+- SSE によるルーム状態のリアルタイム配信
+
+* 2. システム概要
+
+** 2.1 技術構成
+
+- 実装言語は TypeScript
+- HTTP サーバーは Express
+- CORS を有効化
+- JSON / URL-encoded のリクエストボディを受け付ける
+- 開発起動は =npm run dev=
+- 通常起動は =npm start=
+- テストは Vitest + Supertest
+
+参照:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/package.json][backend/package.json]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/app.ts][backend/src/app.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/index.ts][backend/src/index.ts]]
+
+** 2.2 保持方式
+
+ルーム情報はインメモリで保持されます。
+=Map<string, Room>= にルーム本体を保存し、別の =Map<string, Set<Response>>= に SSE 購読者を保持します。
+
+このため現在の制約は次の通りです。
+
+- サーバー再起動でルーム情報は消える
+- 永続化 DB は未実装
+- 認証は未実装
+- =playerId= を知っていれば、そのプレイヤーとして API を実行できる
+
+参照:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/store/room-store.ts][backend/src/store/room-store.ts]]
+
+* 3. データモデル
+
+** 3.1 Room
+
+ルームは次の情報を持ちます。
+
+- =id=: ルーム ID
+- =hostPlayerId=: ホストのプレイヤー ID
+- =players=: プレイヤー配列
+- =currentSession=: 現在のゲームセッション
+
+** 3.2 Player
+
+- =id=: プレイヤー ID
+- =name=: 表示名
+
+プレイヤー ID やルーム ID、セッション ID は =Math.random()= ベースの簡易 ID で生成されます。
+
+** 3.3 GameSession
+
+- =id=: セッション ID
+- =status=: =waiting= / =in_progress= / =finished=
+- =phase=: 進行段階
+- =round=: 現在ラウンド数。開始前は =0=
+- =currentDrawnNumber=: 現在ラウンドの抽選番号。開始前は =null=
+- =drawnNumbers=: これまでに抽選済みの番号一覧
+- =endReason=: =null= / =bingo= / =all_numbers_drawn=
+- =winners=: 勝者となった =playerId= の配列
+- =endCondition=: 終了条件
+- =playerStates=: プレイヤーごとの状態
+
+デフォルトの終了条件は次です。
+
+- =bingoCount = 1=
+- =finishWhenAllNumbersDrawn = true=
+
+** 3.4 PlayerSessionState
+
+- =card=: ビンゴカード。未作成時は =null=
+- =isReadyForStart=: 開始準備完了フラグ
+- =hasActedThisRound=: そのラウンドで操作済みか
+
+参照:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/types/session.ts][backend/src/types/session.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/services/room-state.ts][backend/src/services/room-state.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/logic/session/judge.ts][backend/src/logic/session/judge.ts]]
+
+* 4. ビンゴカード仕様
+
+** 4.1 基本構造
+
+カードは =5x5= の 25 マスで構成され、内部的には一次元配列で保持します。
+
+- =positionId=: =0..24=
+- FREE マス位置: =12=
+- 数字の範囲: =1..75=
+
+各セルは次を持ちます。
+
+- =positionId=
+- =value=: 数字。FREE マスは =null=
+- =isOpened=: 開いているか
+- =isFree=: FREE マスか
+
+** 4.2 生成ルール
+
+カード生成時は =1..75= から重複なしで 24 個をランダム抽出し、FREE 以外の 24 マスへ順に配置します。
+一般的な B/I/N/G/O 列ごとの数値帯ルールは採用していません。
+
+カード生成直後の仕様:
+
+- 全セルが =isOpened = false=
+- FREE マスも生成直後は閉じている
+
+** 4.3 FREE マスの扱い
+
+FREE マスはカード生成時には開かれません。
+=POST /rooms/:roomId/session/ready= を実行した時点で FREE マスが開きます。
+
+** 4.4 抽選番号による開封
+
+各ラウンドでプレイヤーが =act= を行うと、現在の抽選番号と一致するセルがあればそのセルを開きます。
+一致する数字がなければカードは変化しませんが、行動済みにはなります。
+
+** 4.5 判定
+
+ビンゴ判定対象のラインは 12 本です。
+
+- 横 5 本
+- 縦 5 本
+- 斜め 2 本
+
+=bingoCount= は全開しているライン数です。
+=reachCount= は「そのライン内で開いているマス数が 4」のライン数です。
+
+参照:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/types/bingo.ts][backend/src/types/bingo.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/constants/bingo.ts][backend/src/constants/bingo.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/logic/bingo/card.ts][backend/src/logic/bingo/card.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/logic/bingo/judge.ts][backend/src/logic/bingo/judge.ts]]
+
+* 5. 進行状態
+
+** 5.1 status
+
+- =waiting=: 開始前
+- =in_progress=: 進行中
+- =finished=: 終了
+
+** 5.2 phase
+
+- =waiting_for_ready=: カード作成と ready を受け付ける
+- =waiting_for_host_start=: 全員 ready 後、ホスト開始待ち
+- =waiting_for_player_actions=: 各プレイヤーの act 待ち
+- =waiting_for_host_next_round=: 全員 act 後、ホストの次ラウンド待ち
+- =finished=: セッション終了
+
+** 5.3 状態遷移
+
+#+begin_example
+waiting / waiting_for_ready
+  ├─ プレイヤー参加
+  ├─ 各プレイヤーが setup
+  └─ 全員 ready で waiting_for_host_start へ
+
+waiting / waiting_for_host_start
+  └─ ホストが start で in_progress / waiting_for_player_actions へ
+
+in_progress / waiting_for_player_actions
+  └─ 全員が act すると
+       ├─ 終了条件達成なら finished / finished
+       └─ 未達なら waiting_for_host_next_round へ
+
+in_progress / waiting_for_host_next_round
+  └─ ホストが next-round で waiting_for_player_actions へ
+
+finished / finished
+#+end_example
+
+* 6. ゲーム進行仕様
+
+** 6.1 ルーム作成
+
+ホスト名を受け取り、新規ルームとホストプレイヤーを作成します。
+ルーム作成時点で =currentSession= も同時に初期化されます。
+
+初期セッション状態:
+
+- =status = waiting=
+- =phase = waiting_for_ready=
+- =round = 0=
+- =currentDrawnNumber = null=
+- =drawnNumbers = []=
+- =winners = []=
+- =endReason = null=
+
+** 6.2 参加
+
+プレイヤー参加は、次の条件を両方満たすときだけ可能です。
+
+- =currentSession.status === "waiting"=
+- =currentSession.phase === "waiting_for_ready"=
+
+したがって、全員 ready 後やゲーム開始後は新規参加できません。
+
+** 6.3 setup
+
+プレイヤー自身のカードを 1 回だけ作成できます。
+
+条件:
+
+- ルームが存在すること
+- セッションが =waiting= であること
+- 対象プレイヤーが存在すること
+- そのプレイヤーがまだカード未作成であること
+
+結果:
+
+- ランダムなカードが =playerStates[playerId].card= に保存される
+
+** 6.4 ready
+
+ready は開始前かつ =waiting_for_ready= フェーズでのみ受け付けます。
+
+条件:
+
+- プレイヤーが存在すること
+- プレイヤー状態が存在すること
+- カード作成済みであること
+- まだ ready 済みでないこと
+
+結果:
+
+- FREE マスを開く
+- =isReadyForStart = true=
+- 全員 ready なら =phase = waiting_for_host_start= に遷移
+
+** 6.5 start
+
+ホストのみ実行できます。
+
+条件:
+
+- リクエストの =playerId= が =hostPlayerId= と一致すること
+- セッションが =waiting= であること
+- フェーズが =waiting_for_host_start= であること
+- 全員 ready であること
+
+結果:
+
+- 1 つ目の抽選番号を決定
+- =status = in_progress=
+- =phase = waiting_for_player_actions=
+- =round = 1=
+- =currentDrawnNumber= を更新
+- =drawnNumbers= に反映
+- 全プレイヤーの =hasActedThisRound = false=
+
+抽選可能番号が残っていない場合:
+
+- =status = finished=
+- =phase = finished=
+- =endReason = all_numbers_drawn=
+- HTTP ステータスは =409=
+
+** 6.6 act
+
+プレイヤー操作は、進行中かつ =waiting_for_player_actions= の間だけ受け付けます。
+
+条件:
+
+- プレイヤーが存在すること
+- カード作成済みであること
+- まだそのラウンドで act していないこと
+- =currentDrawnNumber= が存在すること
+
+結果:
+
+- 抽選番号と一致するセルがあれば開く
+- =hasActedThisRound = true=
+
+全員 act 後の追加処理:
+
+- =winners= を再計算
+- 全プレイヤー中の最大 =bingoCount= を計算
+- 終了条件を判定
+
+終了条件成立時:
+
+- =status = finished=
+- =phase = finished=
+- =endReason = bingo= または =all_numbers_drawn=
+
+未成立時:
+
+- =phase = waiting_for_host_next_round=
+
+勝者判定は「=countBingoLines(card) >= endCondition.bingoCount= を満たすプレイヤー全員」です。
+
+** 6.7 next-round
+
+ホストのみ実行できます。
+
+条件:
+
+- リクエストの =playerId= が =hostPlayerId= と一致すること
+- セッションが =in_progress= であること
+- フェーズが =waiting_for_host_next_round= であること
+- 全員が act 済みであること
+
+結果:
+
+- 次の番号を抽選
+- =round= を 1 増加
+- =currentDrawnNumber= を更新
+- =drawnNumbers= を更新
+- =phase = waiting_for_player_actions=
+- 全プレイヤーの =hasActedThisRound = false=
+
+抽選可能番号が残っていない場合:
+
+- =status = finished=
+- =phase = finished=
+- =endReason = all_numbers_drawn=
+- HTTP ステータスは =200=
+
+* 7. API 仕様
+
+** 7.1 POST /rooms
+
+ルーム作成。
+
+リクエスト:
+
+- =name=: 必須。文字列。前後空白除去後に空文字は不可
+
+成功:
+
+- HTTP =201=
+- =message=
+- =room=
+- =playerId=: ホストのプレイヤー ID
+
+失敗:
+
+- HTTP =400=: =name は必須です。=
+
+** 7.2 POST /rooms/:roomId/join
+
+ルーム参加。
+
+リクエスト:
+
+- =name=: 必須
+
+成功:
+
+- HTTP =201=
+- =message=
+- =room=
+- =playerId=
+
+失敗:
+
+- HTTP =404=: ルームなし
+- HTTP =409=: 進行中または終了済み
+- HTTP =409=: =waiting_for_ready= 以外
+- HTTP =400=: 名前不正
+
+** 7.3 GET /rooms/:roomId
+
+現在のルーム状態取得。
+
+成功:
+
+- HTTP =200=
+- =room=
+
+失敗:
+
+- HTTP =404=: ルームなし
+
+** 7.4 POST /rooms/:roomId/session/setup
+
+プレイヤーのカード作成。
+
+リクエスト:
+
+- =playerId=: 必須
+
+成功:
+
+- HTTP =200=
+- =message=
+- =room=
+- =player=: 対象プレイヤーの最新状態
+
+失敗:
+
+- HTTP =404=: ルームなし
+- HTTP =409=: セッション開始済みまたは終了済み
+- HTTP =404=: プレイヤーなし
+- HTTP =404=: プレイヤー状態なし
+- HTTP =409=: カード作成済み
+
+** 7.5 GET /rooms/:roomId/events
+
+SSE 購読開始。
+
+仕様:
+
+- =Content-Type: text/event-stream=
+- =Cache-Control: no-cache=
+- =Connection: keep-alive=
+- =X-Accel-Buffering: no=
+- 接続直後に =room_updated= を 1 回送信
+- 15 秒ごとに =: heartbeat= を送信
+- 接続切断時に購読解除
+
+失敗:
+
+- HTTP =404=: ルームなし
+
+** 7.6 POST /rooms/:roomId/session/ready
+
+開始準備完了。
+
+リクエスト:
+
+- =playerId=: 必須
+
+成功:
+
+- HTTP =200=
+- =message=
+- =room=
+- =player=
+
+失敗:
+
+- HTTP =404=: ルームなし
+- HTTP =409=: 開始前セッションでない
+- HTTP =409=: =waiting_for_ready= 以外
+- HTTP =404=: プレイヤーなし
+- HTTP =400=: カード未作成
+- HTTP =409=: 二重 ready
+
+** 7.7 POST /rooms/:roomId/session/start
+
+ホストによるゲーム開始。
+
+リクエスト:
+
+- =playerId=: 必須。ホスト ID
+
+成功:
+
+- HTTP =200=
+- =message=
+- =drawNumber=: 初回抽選番号
+- =room=
+
+失敗:
+
+- HTTP =403=: ホスト以外
+- HTTP =409=: すでに開始済み
+- HTTP =409=: 全員 ready 前
+- HTTP =409=: 抽選可能番号なし
+
+** 7.8 POST /rooms/:roomId/session/act
+
+現在ラウンドのプレイヤー操作。
+
+リクエスト:
+
+- =playerId=: 必須
+
+成功:
+
+- HTTP =200=
+- =message=
+- =room=
+- =player=
+
+失敗:
+
+- HTTP =404=: ルームなし
+- HTTP =409=: 進行中セッションでない
+- HTTP =409=: =waiting_for_player_actions= 以外
+- HTTP =404=: プレイヤーなし
+- HTTP =400=: カード未作成
+- HTTP =409=: 二重 act
+- HTTP =409=: =currentDrawnNumber= が =null=
+
+** 7.9 POST /rooms/:roomId/session/next-round
+
+ホストによる次ラウンド開始。
+
+リクエスト:
+
+- =playerId=: 必須。ホスト ID
+
+成功:
+
+- HTTP =200=
+- =message=
+- 次番号抽選時は =drawNumber=
+- =room=
+
+失敗:
+
+- HTTP =404=: ルームなし
+- HTTP =403=: ホスト以外
+- HTTP =409=: 進行中セッションでない
+- HTTP =409=: =waiting_for_host_next_round= 以外
+- HTTP =409=: 未行動プレイヤーあり
+
+* 8. レスポンス構造
+
+** 8.1 room レスポンス
+
+主要 API は =buildRoomResponse= を通して、次の形式で返します。
+
+#+begin_src json
+{
+  "room": {
+    "id": "room-xxxx",
+    "hostPlayerId": "player-xxxx",
+    "players": [
+      {
+        "id": "player-xxxx",
+        "name": "host",
+        "isReadyForStart": true,
+        "hasActedThisRound": false,
+        "card": {
+          "cells": []
+        },
+        "openedPositionIds": [12],
+        "bingoCount": 0,
+        "reachCount": 0
+      }
+    ],
+    "currentSession": {
+      "...": "セッション内部状態がそのまま含まれる"
+    }
+  }
+}
+#+end_src
+
+プレイヤーのカードが未作成の場合、=card= は =null= で、=openedPositionIds= / =bingoCount= / =reachCount= は返りません。
+
+** 8.2 SSE イベント
+
+SSE のイベント名は現状 =room_updated= のみです。
+ペイロードは =GET /rooms/:roomId= と同等の =buildRoomResponse(room)= です。
+
+* 9. バリデーションと制約
+
+- =name= は文字列で、trim 後に空文字だと不正
+- =playerId= の型検証は厳密にはしておらず、存在確認で判定している
+- 認証や権限制御は =hostPlayerId= 一致確認のみ
+- ルーム人数上限は未実装
+- セッションの作り直し、再戦、途中退出、プレイヤー削除は未実装
+- SSE のイベント種別追加や差分配信は未実装
+
+* 10. 実装上の注意点
+
+- =broadcastRoom(room)= はルーム更新時に購読中クライアントへ =room_updated= を配信する
+- SSE 購読者がいない場合、ブロードキャストは何もしない
+- ビンゴ終了判定は「そのラウンドで全員の act が終わった後」にのみ行う
+- =all_numbers_drawn= 判定は、=start= / =next-round= の抽選結果または終了判定ロジックから発生しうる
+
+参照:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/routes/rooms.ts][backend/src/routes/rooms.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/services/room-response.ts][backend/src/services/room-response.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/routes/rooms.test.ts][backend/src/routes/rooms.test.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/routes/rooms.sse.test.ts][backend/src/routes/rooms.sse.test.ts]]
