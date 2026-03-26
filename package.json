@@ -1,0 +1,16 @@
+{
+  "name": "I_will_BINGO",
+  "private": true,
+  "scripts": {
+    "dev": "sh -c 'trap \"kill 0\" EXIT; npm --prefix backend run dev & npm --prefix frontend run dev'",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "start": "npm --prefix backend run start",
+    "build": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.1"
+  }
+}
