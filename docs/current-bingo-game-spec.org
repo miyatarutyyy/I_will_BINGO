@@ -1,0 +1,467 @@
+* 現在のビンゴゲーム仕様書
+
+この文書は、現在の実装をもとにした「いまこのプロジェクトで何ができるか」を説明する仕様書です。
+初めてこのプロジェクトを見る人が、バックエンドの役割、ゲームの進み方、API の使い方、現在の制約を一通り理解できることを目的にしています。
+
+この仕様書は理想像ではなく、=2026-03-26= 時点の実装に合わせています。
+
+* 1. このプロジェクトは何をするものか
+
+このプロジェクトは、複数人で遊ぶオンラインビンゴゲームです。
+バックエンドはルーム作成、参加、ゲーム進行、勝敗判定、リアルタイム同期を担当します。
+
+現在のバックエンドでできることは次の通りです。
+
+- ホストがルームを作る
+- 他のプレイヤーがルームに参加する
+- 各プレイヤーが自分のビンゴカードを作る
+- 各プレイヤーが開始準備を完了する
+- ホストがゲームを開始する
+- 各ラウンドで番号を 1 つ抽選する
+- 各プレイヤーがそのラウンドの操作を 1 回行う
+- 全員の操作後、ホストが次ラウンドへ進める
+- ビンゴ成立、または全番号抽選でゲームを終了する
+- SSE でルーム状態をリアルタイム配信する
+
+* 2. システムの全体像
+
+このプロジェクトのバックエンドは =Express + TypeScript= で動いています。
+データベースはまだ使っておらず、ルーム情報はメモリ上に保存されます。
+
+そのため、現在の特徴は次の通りです。
+
+- サーバー起動中だけゲーム状態が保持される
+- サーバーを再起動するとルーム情報は消える
+- 認証は未実装で、=playerId= を持っていればそのプレイヤーとして操作できる
+
+主要ファイル:
+
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/index.ts][backend/src/index.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/app.ts][backend/src/app.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/routes/rooms.ts][backend/src/routes/rooms.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/store/room-store.ts][backend/src/store/room-store.ts]]
+
+* 3. 登場する概念
+
+** 3.1 ルーム
+
+ゲームを遊ぶための単位です。
+1 つのルームに、ホスト 1 人と複数の参加者が入ります。
+
+ルームは次の情報を持ちます。
+
+- =id=: ルーム ID
+- =hostPlayerId=: ホストのプレイヤー ID
+- =players=: 参加プレイヤー一覧
+- =currentSession=: 現在のゲームセッション
+
+定義:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/types/session.ts][backend/src/types/session.ts]]
+
+** 3.2 プレイヤー
+
+プレイヤーはルームに参加するユーザーです。
+
+プレイヤーが持つ情報はシンプルです。
+
+- =id=
+- =name=
+
+** 3.3 セッション
+
+1 回のビンゴゲーム本体です。
+現在の実装では、ルームは =currentSession= を 1 つだけ持ちます。
+
+セッションは次の情報を持ちます。
+
+- 現在の状態
+- 現在のフェーズ
+- 何ラウンド目か
+- 現在の抽選番号
+- これまでに抽選された番号一覧
+- 勝者一覧
+- 終了条件
+- プレイヤーごとの状態
+
+** 3.4 プレイヤーごとの状態
+
+各プレイヤーには、セッションごとの状態があります。
+
+- =card=: ビンゴカード
+- =isReadyForStart=: 開始準備が終わったか
+- =hasActedThisRound=: そのラウンドで操作済みか
+
+* 4. ビンゴカードの仕様
+
+現在のカードは 5x5 の 25 マスです。
+中央 1 マスは FREE マスです。
+
+カードの内部表現は一次元配列で、位置は =0..24= で表します。
+中央の FREE マスは =positionId = 12= です。
+
+定義:
+
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/types/bingo.ts][backend/src/types/bingo.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/constants/bingo.ts][backend/src/constants/bingo.ts]]
+
+各マスは次の情報を持ちます。
+
+- =positionId=: 位置
+- =value=: 数字。FREE は =null=
+- =isOpened=: 開いているか
+- =isFree=: FREE マスか
+
+** 4.1 カード生成ルール
+
+カード生成では、1 から 75 の番号から 24 個をランダムに選びます。
+中央だけは FREE マスなので数字を持ちません。
+
+ここで注意点があります。
+
+一般的なビンゴでは B 列は 1-15、I 列は 16-30 のように列ごとに範囲が決まることがありますが、
+現在の実装はその方式ではありません。
+今は単純に =1..75= からランダムに 24 個を選ぶ仕様です。
+
+実装:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/logic/bingo/card.ts][backend/src/logic/bingo/card.ts]]
+
+** 4.2 FREE マス
+
+FREE マスはカード作成時点ではまだ閉じています。
+プレイヤーが =ready= を送ったときに開きます。
+
+つまり、現在の仕様では「カードを作っただけでは FREE は開かず、準備完了時に開く」です。
+
+* 5. ゲームの流れ
+
+現在のゲーム進行は、次の順番です。
+
+** 5.1 ルーム作成
+
+ホストが名前を送ってルームを作ります。
+このとき、ホスト自身もプレイヤーとして登録されます。
+
+返却される主な情報:
+
+- ルーム ID
+- ホストのプレイヤー ID
+- 現在のルーム状態
+
+** 5.2 参加
+
+他のプレイヤーはルーム ID を指定して参加します。
+
+ただし、参加できるのは次の条件を満たす間だけです。
+
+- セッションがまだ始まっていない
+- フェーズが =waiting_for_ready= である
+
+つまり、全員の準備完了後やゲーム開始後には新規参加できません。
+
+** 5.3 カード作成
+
+各プレイヤーは自分用のカードを作成します。
+
+この処理で行うこと:
+
+- プレイヤー本人の状態を取得
+- まだカードを持っていないことを確認
+- 新しいカードを作成して保存
+
+1 人のプレイヤーは 1 セッション中に 1 回だけカード作成できます。
+
+** 5.4 準備完了
+
+カード作成後、各プレイヤーは準備完了を送ります。
+
+この処理で行うこと:
+
+- カード未作成ならエラー
+- FREE マスを開く
+- =isReadyForStart= を =true= にする
+
+全員が ready になると、フェーズは =waiting_for_host_start= に変わります。
+
+** 5.5 ゲーム開始
+
+ホストだけがゲームを開始できます。
+
+開始時に行うこと:
+
+- 全員が ready か確認
+- 最初の番号を 1 つ抽選
+- セッション状態を =in_progress= に変更
+- フェーズを =waiting_for_player_actions= に変更
+- ラウンド数を 1 に設定
+- 各プレイヤーの =hasActedThisRound= を =false= に初期化
+
+** 5.6 各ラウンドの進行
+
+ラウンド中は、現在の抽選番号に対して各プレイヤーが 1 回だけ操作します。
+
+現在の実装では、プレイヤー操作は「抽選された番号と一致するマスがあればそのマスを開く」です。
+
+この処理で行うこと:
+
+- プレイヤーがそのラウンド未操作であることを確認
+- 現在の抽選番号を取得
+- 抽選番号と一致するマスを開く
+- =hasActedThisRound= を =true= にする
+
+プレイヤーが番号を選んだり、戦略的な手札を使ったりする機能は、現時点ではまだありません。
+
+** 5.7 ラウンド終了判定
+
+全員がそのラウンドの操作を終えると、サーバーは次を判定します。
+
+- 勝者がいるか
+- ゲーム終了条件を満たしたか
+
+終了しない場合:
+
+- フェーズを =waiting_for_host_next_round= にする
+
+終了する場合:
+
+- セッション状態を =finished= にする
+- フェーズを =finished= にする
+- 終了理由を保存する
+
+** 5.8 次ラウンド
+
+ホストだけが次ラウンドへ進めます。
+
+次ラウンド開始時に行うこと:
+
+- 全員が前ラウンドを終えていることを確認
+- 次の番号を抽選
+- ラウンド数を 1 増やす
+- 現在の抽選番号を更新
+- 抽選済み番号一覧を更新
+- フェーズを =waiting_for_player_actions= に戻す
+- 全プレイヤーの =hasActedThisRound= を =false= に戻す
+- SSE で =room_updated= を配信する
+
+* 6. セッション状態とフェーズ
+
+このプロジェクトでは、進行管理に =status= と =phase= の 2 つを使います。
+
+** 6.1 status
+
+大きな状態です。
+
+- =waiting=: 開始前
+- =in_progress=: 進行中
+- =finished=: 終了
+
+** 6.2 phase
+
+より細かい進行段階です。
+
+- =waiting_for_ready=
+- =waiting_for_host_start=
+- =waiting_for_player_actions=
+- =waiting_for_host_next_round=
+- =finished=
+
+** 6.3 状態遷移
+
+#+begin_example
+waiting / waiting_for_ready
+  ↓ カード作成と ready
+waiting / waiting_for_host_start
+  ↓ ホストが start
+in_progress / waiting_for_player_actions
+  ↓ 全員が act
+in_progress / waiting_for_host_next_round
+  ↓ ホストが next-round
+in_progress / waiting_for_player_actions
+
+または
+
+in_progress / waiting_for_player_actions
+  ↓ 全員 act 後に終了条件達成
+finished / finished
+#+end_example
+
+* 7. 勝敗判定の仕様
+
+** 7.1 判定対象ライン
+
+現在のビンゴ判定では、次の 12 本を対象にします。
+
+- 横 5 本
+- 縦 5 本
+- 斜め 2 本
+
+** 7.2 ビンゴ
+
+1 本のラインの 5 マスがすべて開いていればビンゴです。
+
+** 7.3 リーチ
+
+1 本のラインのうち 4 マスが開いていればリーチです。
+
+** 7.4 現在の終了条件
+
+現在のデフォルト終了条件は次の通りです。
+
+- 1 本以上ビンゴしたら終了
+- すべての番号が抽選されたら終了
+
+終了理由は次のどちらかになります。
+
+- =bingo=
+- =all_numbers_drawn=
+
+実装:
+
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/logic/bingo/judge.ts][backend/src/logic/bingo/judge.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/logic/session/judge.ts][backend/src/logic/session/judge.ts]]
+
+* 8. API 一覧
+
+現在の主要 API は次の通りです。
+
+** 8.1 ルーム関連
+
+- =POST /rooms=
+  - ルーム作成
+- =POST /rooms/:roomId/join=
+  - ルーム参加
+- =GET /rooms/:roomId=
+  - ルーム状態取得
+- =GET /rooms/:roomId/events=
+  - SSE 購読開始
+
+** 8.2 セッション関連
+
+- =POST /rooms/:roomId/session/setup=
+  - カード作成
+- =POST /rooms/:roomId/session/ready=
+  - 準備完了
+- =POST /rooms/:roomId/session/start=
+  - ホストがゲーム開始
+- =POST /rooms/:roomId/session/act=
+  - プレイヤーがそのラウンドの操作を実行
+- =POST /rooms/:roomId/session/next-round=
+  - ホストが次ラウンドへ進める
+
+実装:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/routes/rooms.ts][backend/src/routes/rooms.ts]]
+
+* 9. SSE の仕様
+
+このプロジェクトでは、ルームの変化をリアルタイムにクライアントへ伝えるために SSE を使っています。
+
+** 9.1 SSE とは
+
+SSE は、サーバーからクライアントへ一方向にイベントを送り続ける仕組みです。
+このプロジェクトでは、クライアントが =GET /rooms/:roomId/events= に接続し続けることで、ルーム状態の更新通知を受け取ります。
+
+** 9.2 イベント名
+
+現在使っているイベント名は 1 種類です。
+
+- =room_updated=
+
+** 9.3 payload
+
+イベントのデータ本体は =buildRoomResponse(room)= の結果です。
+
+つまり、「今のルーム全体の正しい状態」をまとめて送ります。
+
+この方式の意図は次の通りです。
+
+- クライアント側の実装を単純にする
+- 差分更新ではなく、完全な最新状態で同期する
+- API ごとに別イベントを増やさない
+
+** 9.4 どのときに配信されるか
+
+現在は、ルーム状態が変わる主要な成功系 API で =room_updated= が送られます。
+
+- ルーム作成
+- 参加
+- カード作成
+- ready
+- ゲーム開始
+- act
+- next-round
+- 全番号抽選による終了
+
+実装:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/store/room-store.ts][backend/src/store/room-store.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/services/room-response.ts][backend/src/services/room-response.ts]]
+
+* 10. レスポンスの考え方
+
+API や SSE で返すルーム情報は、内部状態をそのまま返しているだけではありません。
+プレイヤーごとの表示に使いやすい情報も付与しています。
+
+例えばプレイヤー情報には次が含まれます。
+
+- カード本体
+- 開いているマスの位置一覧
+- 現在のビンゴ数
+- 現在のリーチ数
+
+これにより、フロントエンドは毎回カード全体を自前計算しなくても、ある程度そのまま表示に使えます。
+
+* 11. 現在の制約
+
+このプロジェクトは最低限のビンゴ進行を実装した段階なので、まだ次の制約があります。
+
+- データベースがない
+- 認証がない
+- ルーム一覧 API がない
+- 過去セッション履歴がない
+- 1 ルーム 1 セッションのみを前提にしている
+- カード生成が一般的な BINGO 列ルールではない
+- プレイヤーごとの秘密情報の分離はしていない
+- 戦略要素や手札システムは未実装
+
+つまり、現時点では「最低限動くオンラインビンゴゲーム」であり、拡張前の土台という位置づけです。
+
+* 12. 現時点で保証できること
+
+現在のバックエンドについて、少なくとも次は確認済みです。
+
+- 型チェックが通る
+- ルーム作成ができる
+- 参加ができる
+- カード作成ができる
+- ready できる
+- ホストが開始できる
+- プレイヤーが act できる
+- ホストが next-round できる
+- next-round 成功時に SSE 用の =room_updated= が配信される
+
+このため、バックエンド単体としては「ビンゴゲームの最小進行」は成立しています。
+
+ただし、これはあくまで現在の実装範囲での話です。
+運用面、認証、永続化、セキュリティ、複雑な異常系対応まではまだ含みません。
+
+* 13. 初めて読む人向けの読み順
+
+このプロジェクトをコードから理解したい場合は、次の順で読むと分かりやすいです。
+
+1. [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/types/session.ts][backend/src/types/session.ts]]
+   まず何の状態を持つシステムかを把握する
+2. [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/routes/rooms.ts][backend/src/routes/rooms.ts]]
+   次に API と状態遷移を読む
+3. [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/services/room-state.ts][backend/src/services/room-state.ts]]
+   状態生成や判定補助を読む
+4. [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/logic/bingo/card.ts][backend/src/logic/bingo/card.ts]]
+   カード生成とマス操作を読む
+5. [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/logic/bingo/draw.ts][backend/src/logic/bingo/draw.ts]]
+   抽選方法を読む
+6. [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/logic/bingo/judge.ts][backend/src/logic/bingo/judge.ts]]
+   ビンゴ判定を読む
+7. [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/store/room-store.ts][backend/src/store/room-store.ts]]
+   最後に SSE とメモリ保存を見る
+
+* 14. この仕様書の位置づけ
+
+この文書は、いま動いている実装を説明するための仕様書です。
+今後、ルール変更や拡張を行う場合は、この文書を更新して「実装と仕様の差」を小さく保つことを前提にします。
