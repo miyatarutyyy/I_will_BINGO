@@ -161,8 +161,13 @@ input {
   gap: 24px;
 }
 
-.title-panel {
+.title-screen {
   min-height: calc(100vh - 112px);
+  place-items: center;
+}
+
+.title-panel {
+  width: min(720px, 100%);
   border-radius: 34px;
   padding: 44px 28px;
   display: grid;
@@ -484,10 +489,20 @@ input {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.status-badge,
+.mini-badge {
+  background: rgba(236, 239, 241, 0.95);
+  color: #546e7a;
+}
+
+.status-badge.reach {
   background: rgba(255, 241, 118, 0.58);
   color: #7a5b00;
 }
 
+.status-badge.bingo,
 .mini-badge.ready,
 .status-badge.champion {
   background: rgba(200, 230, 201, 0.9);

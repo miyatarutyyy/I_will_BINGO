@@ -29,6 +29,14 @@ export const GameScreen = ({
   const isWaitingForNextRound =
     room?.currentSession.phase === "waiting_for_host_next_round";
   const hasMatchingCell = matchingPositionId !== null;
+  const bingoCount = currentPlayer?.bingoCount ?? 0;
+  const reachCount = currentPlayer?.reachCount ?? 0;
+  const scoreBadgeClassName =
+    bingoCount > 0
+      ? "status-badge bingo"
+      : reachCount > 0
+        ? "status-badge reach"
+        : "status-badge neutral";
 
   const renderProgressButton = () => {
     if (canAct) {
@@ -116,11 +124,10 @@ export const GameScreen = ({
               // <h3>{currentPlayer?.name ?? "Player"} のカード</h3>
             }
             <span
-              className="status-badge"
+              className={scoreBadgeClassName}
               style={{ width: "100%", textAlign: "center" }}
             >
-              Bingo {currentPlayer?.bingoCount ?? 0} / Reach{" "}
-              {currentPlayer?.reachCount ?? 0}
+              Bingo {bingoCount} / Reach {reachCount}
             </span>
           </div>
           <BingoCardView
