@@ -41,14 +41,13 @@ export const TitleScreen = ({
   return (
     <main className="screen title-screen">
       <section className="title-panel">
-        <p className="panel-kicker">Online Room Bingo</p>
+        <p className="panel-kicker">Change Your Destiny</p>
         <h1>I Will BINGO</h1>
         <label className="field">
-          <span>playerName</span>
           <input
             value={playerName}
             onChange={(event) => onPlayerNameChange(event.target.value)}
-            placeholder="あなたの名前"
+            placeholder="プレイヤー名を入力"
             maxLength={24}
           />
         </label>
@@ -85,7 +84,9 @@ export const TitleScreen = ({
             <button
               type="button"
               className="icon-button"
-              onClick={titleModal === "create" ? onCancelCreateModal : onCloseJoinModal}
+              onClick={
+                titleModal === "create" ? onCancelCreateModal : onCloseJoinModal
+              }
               disabled={isBusy}
               aria-label="前の画面に戻る"
             >
@@ -146,12 +147,18 @@ export const TitleScreen = ({
                     <span>ルームID</span>
                     <input
                       value={roomIdInput}
-                      onChange={(event) => onRoomIdInputChange(event.target.value)}
+                      onChange={(event) =>
+                        onRoomIdInputChange(event.target.value)
+                      }
                       placeholder="共有されたルームID"
                     />
                   </label>
 
-                  <button type="submit" className="primary-button" disabled={isBusy}>
+                  <button
+                    type="submit"
+                    className="primary-button"
+                    disabled={isBusy}
+                  >
                     参加
                   </button>
                 </form>
