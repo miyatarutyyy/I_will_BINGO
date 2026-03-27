@@ -27,11 +27,68 @@ export const GameScreen = ({
   onAct,
   onNextRound,
 }: GameScreenProps) => {
+  void syncStatus;
+  const isWaitingForNextRound =
+    room?.currentSession.phase === "waiting_for_host_next_round";
+  const hasMatchingCell = matchingPositionId !== null;
+
+  const renderProgressButton = () => {
+    if (canAct) {
+      if (hasMatchingCell) {
+        return (
+          <button type="button" className="secondary-button" disabled>
+            番号のマスを開いてください
+          </button>
+        );
+      }
+
+      return (
+        <button
+          type="button"
+          className="primary-button"
+          onClick={onAct}
+          disabled={isBusy}
+        >
+          スキップする
+        </button>
+      );
+    }
+
+    if (isWaitingForNextRound) {
+      if (isHost) {
+        return (
+          <button
+            type="button"
+            className="primary-button accent-button"
+            onClick={onNextRound}
+            disabled={isBusy}
+          >
+            次のラウンドを始める
+          </button>
+        );
+      }
+
+      return (
+        <button type="button" className="secondary-button" disabled>
+          次のラウンドが始まります
+        </button>
+      );
+    }
+
+    return (
+      <button type="button" className="secondary-button" disabled>
+        他プレイヤーの操作待ちです
+      </button>
+    );
+  };
+
   return (
     <main className="screen game-screen">
       <section className="game-topbar">
         <div>
-          <p className="panel-kicker">Game Session</p>
+          {
+            //<p className="panel-kicker">Game Session</p>
+          }
           <h2>Round {room?.currentSession.round}</h2>
         </div>
         <div className="session-stats">
@@ -43,20 +100,27 @@ export const GameScreen = ({
             <span>フェーズ</span>
             <strong>{getPhaseLabel(currentPhase)}</strong>
           </div>
-          <div hidden>
-            {/* 現在は UI 上で使っていないため非表示のまま保持しています。 */}
-            <span>同期</span>
-            <strong>{syncStatus}</strong>
-          </div>
+          {
+            //<div hidden>
+            //<span>同期</span>
+            //<strong>{syncStatus}</strong>
+            //</div>
+          }
         </div>
       </section>
 
       <section className="game-layout">
         <article className="panel board-panel">
           <div className="panel-header-row">
-            <h3>{currentPlayer?.name ?? "Player"} のカード</h3>
-            <span className="status-badge">
-              Bingo {currentPlayer?.bingoCount ?? 0} / Reach {currentPlayer?.reachCount ?? 0}
+            {
+              // <h3>{currentPlayer?.name ?? "Player"} のカード</h3>
+            }
+            <span
+              className="status-badge"
+              style={{ width: "100%", textAlign: "center" }}
+            >
+              Bingo {currentPlayer?.bingoCount ?? 0} / Reach{" "}
+              {currentPlayer?.reachCount ?? 0}
             </span>
           </div>
           <BingoCardView
@@ -66,81 +130,69 @@ export const GameScreen = ({
             isBusy={isBusy}
             onAct={onAct}
           />
-          <div className="action-strip">
-            {canAct ? (
-              matchingPositionId !== null ? (
-                <p>光っているマスを押して、このラウンドのアクションを完了します。</p>
-              ) : (
-                <>
-                  <p>今回の番号はあなたのカードにありません。完了ボタンでラウンドを進めます。</p>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={onAct}
-                    disabled={isBusy}
-                  >
-                    該当なしで完了
-                  </button>
-                </>
-              )
-            ) : (
-              <p>
-                {currentPlayer?.hasActedThisRound
-                  ? "このラウンドの操作は完了しています。"
-                  : "現在はあなたの操作ターンではありません。"}
-              </p>
-            )}
-          </div>
+          {
+            // <div className="action-strip">
+            //   {canAct ? (
+            //     matchingPositionId !== null ? (
+            //       <p>
+            //         光っているマスを押して、このラウンドのアクションを完了します。
+            //       </p>
+            //     ) : (
+            //       <p>
+            //         今回の番号はあなたのカードにありません。下のスキップするボタンでこのラウンドを完了します。
+            //       </p>
+            //     )
+            //   ) : (
+            //     <p>
+            //       {currentPlayer?.hasActedThisRound
+            //         ? "このラウンドの操作は完了しています。"
+            //         : "現在はあなたの操作ターンではありません。"}
+            //     </p>
+            //   )}
+            // </div>
+          }
         </article>
 
         <aside className="game-side">
-          <section className="panel">
-            <h3>参加プレイヤー</h3>
-            <div className="player-list compact">
-              {room?.players.map((player) => (
-                <div key={player.id} className="player-row">
-                  <div>
-                    <strong>{player.name}</strong>
-                    <p>{player.id === room.hostPlayerId ? "HOST" : "PLAYER"}</p>
-                  </div>
-                  <span className={`mini-badge ${player.hasActedThisRound ? "ready" : ""}`}>
-                    {player.hasActedThisRound ? "DONE" : "TURN"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
+          {
+            //<section className="panel">
+            // <h3>参加プレイヤー</h3>
+            // <div className="player-list compact">
+            //   {room?.players.map((player) => (
+            //     <div key={player.id} className="player-row">
+            //       <div>
+            //         <strong>{player.name}</strong>
+            //         <p>{player.id === room.hostPlayerId ? "HOST" : "PLAYER"}</p>
+            //       </div>
+            //       <span
+            //         className={`mini-badge ${player.hasActedThisRound ? "ready" : ""}`}
+            //       >
+            //         {player.hasActedThisRound ? "DONE" : "TURN"}
+            //       </span>
+            //     </div>
+            //   ))}
+            // </div>
+            //</section>
+          }
+
+          {
+            // <section className="panel">
+            //   <h3>抽選履歴</h3>
+            //   <div className="draw-history">
+            //     {room?.currentSession.drawnNumbers.map((value) => (
+            //       <span key={value} className="draw-chip">
+            //         {value}
+            //       </span>
+            //     ))}
+            //   </div>
+            // </section>
+          }
 
           <section className="panel">
-            <h3>抽選履歴</h3>
-            <div className="draw-history">
-              {room?.currentSession.drawnNumbers.map((value) => (
-                <span key={value} className="draw-chip">
-                  {value}
-                </span>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel">
-            <h3>進行操作</h3>
-            {isHost ? (
-              <button
-                type="button"
-                className="primary-button accent-button"
-                onClick={onNextRound}
-                disabled={
-                  isBusy ||
-                  room?.currentSession.phase !== "waiting_for_host_next_round"
-                }
-              >
-                次のラウンドへ
-              </button>
-            ) : (
-              <p className="panel-copy">
-                全員のアクションが終わると、ホストが次のラウンドを開始します。
-              </p>
-            )}
+            {
+              //<h3>進行操作</h3>
+            }
+            {renderProgressButton()}
           </section>
         </aside>
       </section>
