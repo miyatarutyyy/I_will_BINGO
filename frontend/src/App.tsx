@@ -275,6 +275,19 @@ const App = () => {
   }, [playerId]);
 
   useEffect(() => {
+    if (notice === "") return;
+
+    const timeoutId = window.setTimeout(() => {
+      setNotice("");
+      setNoticeTone("neutral");
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [notice]);
+
+  useEffect(() => {
     const storedRoomId = readStoredValue(STORAGE_KEYS.roomId);
     const storedPlayerId = readStoredValue(STORAGE_KEYS.playerId);
 
@@ -1001,7 +1014,8 @@ const App = () => {
             <span>フェーズ</span>
             <strong>{getPhaseLabel(currentPhase)}</strong>
           </div>
-          <div>
+          <div hidden>
+            {/* 現在は UI 上で使っていないため非表示のまま保持しています。 */}
             <span>同期</span>
             <strong>{syncStatus}</strong>
           </div>
@@ -1138,11 +1152,7 @@ const App = () => {
       <div className="background-orb orb-b" />
       <div className="background-orb orb-c" />
 
-      <div className="notice-slot">
-        {notice ? (
-          <div className={`notice-banner ${noticeTone}`}>{notice}</div>
-        ) : null}
-      </div>
+      {notice ? <div className={`notice-banner ${noticeTone}`}>{notice}</div> : null}
 
       {isBootstrapping && <div className="boot-message">保存済みルームを確認しています...</div>}
 

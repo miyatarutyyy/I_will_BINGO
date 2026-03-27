@@ -76,17 +76,10 @@ input {
 }
 
 .screen,
-.notice-slot,
 .notice-banner,
 .boot-message {
   position: relative;
   z-index: 1;
-}
-
-.notice-slot {
-  width: min(1180px, 100%);
-  min-height: 70px;
-  margin: 0 auto 18px;
 }
 
 .notice-banner,
@@ -109,6 +102,14 @@ input {
 .boot-message {
   padding: 14px 18px;
   border-radius: 18px;
+}
+
+.notice-banner {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 20;
+  width: min(360px, calc(100vw - 36px));
 }
 
 .notice-banner.neutral,
