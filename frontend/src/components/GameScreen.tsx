@@ -1,4 +1,7 @@
+import { useEffect, useRef, useState } from "react";
+
 import { BingoCardView } from "./BingoCardView";
+import { DrawRevealModal } from "./DrawRevealModal";
 import type { PlayerSummary, Room, RoundPhase } from "../types/game";
 
 type GameScreenProps = {
@@ -31,12 +34,33 @@ export const GameScreen = ({
   const hasMatchingCell = matchingPositionId !== null;
   const bingoCount = currentPlayer?.bingoCount ?? 0;
   const reachCount = currentPlayer?.reachCount ?? 0;
+  const [activeDrawKey, setActiveDrawKey] = useState("");
+  const [isDrawRevealOpen, setIsDrawRevealOpen] = useState(false);
+  const lastPresentedDrawKeyRef = useRef("");
   const scoreBadgeClassName =
     bingoCount > 0
       ? "status-badge bingo"
       : reachCount > 0
         ? "status-badge reach"
         : "status-badge neutral";
+  const currentDrawnNumber = room?.currentSession.currentDrawnNumber ?? null;
+  const drawPresentationKey =
+    room?.currentSession.status === "in_progress" && currentDrawnNumber !== null
+      ? `${room.currentSession.id}:${room.currentSession.round}:${currentDrawnNumber}`
+      : "";
+
+  useEffect(() => {
+    if (drawPresentationKey === "") {
+      setIsDrawRevealOpen(false);
+      return;
+    }
+
+    if (drawPresentationKey === lastPresentedDrawKeyRef.current) return;
+
+    lastPresentedDrawKeyRef.current = drawPresentationKey;
+    setActiveDrawKey(drawPresentationKey);
+    setIsDrawRevealOpen(true);
+  }, [drawPresentationKey]);
 
   const renderProgressButton = () => {
     if (canAct) {
@@ -90,9 +114,19 @@ export const GameScreen = ({
 
   return (
     <main className="screen game-screen">
+      <DrawRevealModal
+        animationKey={activeDrawKey}
+        isOpen={isDrawRevealOpen}
+        round={room?.currentSession.round ?? 0}
+        targetNumber={currentDrawnNumber}
+        onComplete={() => {
+          setIsDrawRevealOpen(false);
+        }}
+      />
+
       <section className="game-topbar">
         <div className="current-number-card">
-          <strong>{room?.currentSession.currentDrawnNumber ?? "-"}</strong>
+          <strong>{currentDrawnNumber ?? "-"}</strong>
         </div>
       </section>
 
