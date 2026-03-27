@@ -74,8 +74,13 @@ type ApiResponse = {
 };
 
 type Screen = "title" | "room" | "game" | "result";
-type JoinMode = "hidden" | "visible";
 type NoticeTone = "neutral" | "error" | "success";
+type TitleModal = "closed" | "create" | "join";
+
+type PendingRoomDraft = {
+  room: Room;
+  playerId: string;
+};
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:3000";
@@ -211,12 +216,17 @@ const App = () => {
   );
   const [room, setRoom] = useState<Room | null>(null);
   const [screen, setScreen] = useState<Screen>("title");
-  const [joinMode, setJoinMode] = useState<JoinMode>("hidden");
+  const [titleModal, setTitleModal] = useState<TitleModal>("closed");
+  const [pendingRoomDraft, setPendingRoomDraft] = useState<PendingRoomDraft | null>(
+    null,
+  );
   const [isBusy, setIsBusy] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState<NoticeTone>("neutral");
   const [syncStatus, setSyncStatus] = useState("offline");
+  const roomId = room?.id ?? null;
+  const currentScreenValue = getScreenFromRoom(room);
 
   const currentPlayer = getPlayerById(room, playerId);
   const isHost = room !== null && playerId === room.hostPlayerId;
@@ -302,7 +312,7 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (!room) {
+    if (!roomId) {
       setScreen("title");
       setSyncStatus("offline");
 
@@ -314,9 +324,9 @@ const App = () => {
       return;
     }
 
-    setScreen(getScreenFromRoom(room));
+    setScreen(currentScreenValue);
 
-    const source = new EventSource(`${API_BASE}/rooms/${room.id}/events`);
+    const source = new EventSource(`${API_BASE}/rooms/${roomId}/events`);
     eventSourceRef.current?.close();
     eventSourceRef.current = source;
     setSyncStatus("connecting");
@@ -346,7 +356,7 @@ const App = () => {
         eventSourceRef.current = null;
       }
     };
-  }, [room?.id]);
+  }, [currentScreenValue, roomId]);
 
   const handleApiRequest = async (
     path: string,
@@ -377,7 +387,33 @@ const App = () => {
     }
   };
 
-  const handleCreateRoom = async () => {
+  const copyText = async (value: string, successMessage: string) => {
+    if (value === "") return;
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "absolute";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+
+      setNotice(successMessage);
+      setNoticeTone("success");
+    } catch {
+      setNotice("ルームIDのコピーに失敗しました。");
+      setNoticeTone("error");
+    }
+  };
+
+  const handleOpenCreateModal = async () => {
     const trimmedName = trimText(playerName);
 
     if (trimmedName === "") {
@@ -399,17 +435,70 @@ const App = () => {
         throw new Error("ルーム作成レスポンスが不正です。");
       }
 
+      setPendingRoomDraft({
+        room: payload.room,
+        playerId: payload.playerId,
+      });
       setRoomIdInput(payload.room.id);
-      await syncRoom(payload.room, payload.playerId);
-      setJoinMode("hidden");
-      setNotice(payload.message ?? "ルームを作成しました。");
-      setNoticeTone("success");
+      setTitleModal("create");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "ルーム作成に失敗しました。");
       setNoticeTone("error");
     } finally {
       setIsBusy(false);
     }
+  };
+
+  const handleConfirmCreateRoom = async () => {
+    if (!pendingRoomDraft) return;
+
+    setNotice("");
+    setNoticeTone("neutral");
+    await syncRoom(pendingRoomDraft.room, pendingRoomDraft.playerId);
+    setTitleModal("closed");
+    setPendingRoomDraft(null);
+    setNotice("ルーム待機画面へ移動しました。");
+    setNoticeTone("success");
+  };
+
+  const handleCancelCreateModal = async () => {
+    if (!pendingRoomDraft) {
+      setTitleModal("closed");
+      return;
+    }
+
+    setIsBusy(true);
+    setNotice("");
+
+    try {
+      await handleApiRequest(`/rooms/${pendingRoomDraft.room.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({ playerId: pendingRoomDraft.playerId }),
+      });
+
+      setPendingRoomDraft(null);
+      setRoomIdInput("");
+      setTitleModal("closed");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "ルーム削除に失敗しました。");
+      setNoticeTone("error");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleOpenJoinModal = () => {
+    const trimmedName = trimText(playerName);
+
+    if (trimmedName === "") {
+      setNotice("playerName を入力してください。");
+      setNoticeTone("error");
+      return;
+    }
+
+    setNotice("");
+    setNoticeTone("neutral");
+    setTitleModal("join");
   };
 
   const handleJoinRoom = async (event: FormEvent) => {
@@ -445,6 +534,7 @@ const App = () => {
 
       setRoomIdInput(payload.room.id);
       await syncRoom(payload.room, payload.playerId);
+      setTitleModal("closed");
       setNotice(payload.message ?? "ルームに参加しました。");
       setNoticeTone("success");
     } catch (error) {
@@ -601,7 +691,8 @@ const App = () => {
     setPlayerId("");
     setRoomIdInput("");
     setScreen("title");
-    setJoinMode("hidden");
+    setTitleModal("closed");
+    setPendingRoomDraft(null);
     setNotice("");
     setNoticeTone("neutral");
     setSyncStatus("offline");
@@ -613,28 +704,7 @@ const App = () => {
 
   const handleCopyRoomId = async () => {
     if (!room?.id) return;
-
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(room.id);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = room.id;
-        textarea.setAttribute("readonly", "true");
-        textarea.style.position = "absolute";
-        textarea.style.left = "-9999px";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
-
-      setNotice("ルームIDをコピーしました。");
-      setNoticeTone("success");
-    } catch {
-      setNotice("ルームIDのコピーに失敗しました。");
-      setNoticeTone("error");
-    }
+    await copyText(room.id, "ルームIDをコピーしました。");
   };
 
   const renderCard = (
@@ -696,43 +766,122 @@ const App = () => {
           />
         </label>
 
-        <div className={`join-stack ${joinMode === "visible" ? "visible" : ""}`}>
+        <div className="join-stack">
           <button
             type="button"
             className="primary-button"
-            onClick={handleCreateRoom}
+            onClick={handleOpenCreateModal}
             disabled={isBusy || isBootstrapping}
           >
             ルームを作成
           </button>
 
-          <div className="join-block">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() =>
-                setJoinMode((current) =>
-                  current === "hidden" ? "visible" : "hidden",
-                )
-              }
-              disabled={isBusy || isBootstrapping}
-            >
-              ルームに参加
-            </button>
-
-            <form className="join-form" onSubmit={handleJoinRoom}>
-              <input
-                value={roomIdInput}
-                onChange={(event) => setRoomIdInput(event.target.value)}
-                placeholder="共有されたルームID"
-              />
-              <button type="submit" className="primary-button" disabled={isBusy}>
-                参加
-              </button>
-            </form>
-          </div>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handleOpenJoinModal}
+            disabled={isBusy || isBootstrapping}
+          >
+            ルームに参加
+          </button>
         </div>
       </section>
+
+      {titleModal !== "closed" ? (
+        <div className="modal-overlay" role="presentation">
+          <section
+            className="title-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="title-modal-heading"
+          >
+            <button
+              type="button"
+              className="icon-button"
+              onClick={
+                titleModal === "create"
+                  ? handleCancelCreateModal
+                  : () => setTitleModal("closed")
+              }
+              disabled={isBusy}
+              aria-label="前の画面に戻る"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M14.5 5.5L8 12l6.5 6.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.4"
+                />
+              </svg>
+            </button>
+
+            {titleModal === "create" ? (
+              <>
+                <p className="panel-kicker">Create Room</p>
+                <h2 id="title-modal-heading">ルームを作成</h2>
+
+                <div className="modal-stack">
+                  <div className="modal-card">
+                    <span>ホストプレイヤー名</span>
+                    <strong>{trimText(playerName)}</strong>
+                  </div>
+
+                  <div className="modal-card">
+                    <span>ルームID</span>
+                    <div className="modal-room-id">
+                      <strong>{pendingRoomDraft?.room.id ?? ""}</strong>
+                      <button
+                        type="button"
+                        className="copy-button"
+                        onClick={() =>
+                          void copyText(
+                            pendingRoomDraft?.room.id ?? "",
+                            "ルームIDをコピーしました。",
+                          )
+                        }
+                        disabled={isBusy || !pendingRoomDraft}
+                      >
+                        コピー
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => void handleConfirmCreateRoom()}
+                    disabled={isBusy || !pendingRoomDraft}
+                  >
+                    作成
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="panel-kicker">Join Room</p>
+                <h2 id="title-modal-heading">ルームに参加</h2>
+                <form className="modal-stack" onSubmit={handleJoinRoom}>
+                  <label className="field modal-field">
+                    <span>ルームID</span>
+                    <input
+                      value={roomIdInput}
+                      onChange={(event) => setRoomIdInput(event.target.value)}
+                      placeholder="共有されたルームID"
+                    />
+                  </label>
+
+                  <button type="submit" className="primary-button" disabled={isBusy}>
+                    参加
+                  </button>
+                </form>
+              </>
+            )}
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 

@@ -26,6 +26,10 @@ const joinRoom = async (roomId: string, name = "guest") => {
   };
 };
 
+const deleteRoom = async (roomId: string, playerId: string) => {
+  return request(app).delete(`/rooms/${roomId}`).send({ playerId });
+};
+
 const setupPlayer = async (roomId: string, playerId: string) => {
   return request(app).post(`/rooms/${roomId}/session/setup`).send({ playerId });
 };
@@ -108,6 +112,39 @@ describe.sequential("roomsRouter", () => {
 
     expect(response.status).toBe(403);
     expect(response.body.message).toBe("セッション開始はホストのみ可能です。");
+  });
+
+  it("ホストは待機中ルームを削除できる", async () => {
+    const { roomId, hostPlayerId } = await createRoom();
+
+    const deleteResponse = await deleteRoom(roomId, hostPlayerId);
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.message).toBe("ルームを削除しました。");
+
+    const getResponse = await request(app).get(`/rooms/${roomId}`);
+
+    expect(getResponse.status).toBe(404);
+    expect(getResponse.body.message).toBe("ルームが見つかりません。");
+  });
+
+  it("ホスト以外はルームを削除できない", async () => {
+    const { roomId } = await createRoom();
+    const { playerId: guestPlayerId } = await joinRoom(roomId);
+
+    const response = await deleteRoom(roomId, guestPlayerId);
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe("ルーム削除はホストのみ可能です。");
+  });
+
+  it("playerId なしではルームを削除できない", async () => {
+    const { roomId } = await createRoom();
+
+    const response = await request(app).delete(`/rooms/${roomId}`).send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe("playerId は必須です。");
   });
 
   it("全員が act すると次ラウンド待ちへ遷移し、next-round でラウンドが進む", async () => {

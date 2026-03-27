@@ -175,7 +175,6 @@ input {
 }
 
 .field,
-.join-form,
 .room-layout,
 .player-list,
 .game-layout,
@@ -197,7 +196,7 @@ input {
 }
 
 .field input,
-.join-form input {
+.modal-field input {
   width: 100%;
   padding: 16px 18px;
   border-radius: 16px;
@@ -212,26 +211,91 @@ input {
   gap: 14px;
 }
 
-.join-block {
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(38, 50, 56, 0.28);
+  backdrop-filter: blur(12px);
+}
+
+.title-modal {
+  position: relative;
+  width: min(520px, 100%);
+  padding: 68px 28px 28px;
+  border-radius: 30px;
+  border: 1px solid rgba(144, 164, 174, 0.28);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 26px 56px rgba(69, 90, 100, 0.22);
   display: grid;
   gap: 14px;
 }
 
-.join-form {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transform: translateY(-10px);
-  transition:
-    max-height 0.32s ease,
-    opacity 0.24s ease,
-    transform 0.32s ease;
+.title-modal h2 {
+  margin: 0;
 }
 
-.join-stack.visible .join-form {
-  max-height: 180px;
-  opacity: 1;
-  transform: translateY(0);
+.icon-button {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(144, 164, 174, 0.3);
+  background: rgba(255, 255, 255, 0.92);
+  color: #37474f;
+}
+
+.icon-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.modal-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.modal-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(176, 190, 197, 0.28);
+  background: rgba(250, 250, 250, 0.98);
+}
+
+.modal-card span,
+.modal-field span {
+  color: #607d8b;
+  font-size: 0.88rem;
+}
+
+.modal-card strong {
+  font-size: 1.2rem;
+  color: #263238;
+}
+
+.modal-room-id {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-room-id strong {
+  font-size: 1.45rem;
+  letter-spacing: 0.08em;
+}
+
+.modal-field {
+  width: 100%;
 }
 
 .primary-button,
@@ -264,13 +328,15 @@ input {
 
 .primary-button:hover,
 .secondary-button:hover,
-.copy-button:hover {
+.copy-button:hover,
+.icon-button:hover {
   filter: brightness(1.05);
 }
 
 .primary-button:disabled,
 .secondary-button:disabled,
 .copy-button:disabled,
+.icon-button:disabled,
 .card-cell:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -552,5 +618,18 @@ input {
 
   .card-cell {
     border-radius: 14px;
+  }
+
+  .title-modal {
+    padding: 62px 18px 22px;
+    border-radius: 24px;
+  }
+
+  .modal-room-id {
+    align-items: stretch;
+  }
+
+  .modal-room-id .copy-button {
+    width: 100%;
   }
 }

@@ -26,6 +26,7 @@ import {
 import {
   addRoomSubscriber,
   broadcastRoom,
+  deleteRoom,
   getRoom,
   removeRoomSubscriber,
   saveRoom,
@@ -109,6 +110,26 @@ roomsRouter.post("/rooms/:roomId/join", (req, res) => {
     room: buildRoomResponse(room).room,
     playerId: player.id,
   });
+});
+
+roomsRouter.delete("/rooms/:roomId", (req, res) => {
+  const room = getRoomOr404(req.params.roomId, res);
+
+  if (!room) return;
+
+  const playerId = req.body?.playerId;
+
+  if (typeof playerId !== "string" || playerId.trim() === "") {
+    return res.status(400).json({ message: "playerId は必須です。" });
+  }
+
+  if (room.hostPlayerId !== playerId) {
+    return res.status(403).json({ message: "ルーム削除はホストのみ可能です。" });
+  }
+
+  deleteRoom(room.id);
+
+  return res.status(200).json({ message: "ルームを削除しました。" });
 });
 
 roomsRouter.get("/rooms/:roomId", (req, res) => {

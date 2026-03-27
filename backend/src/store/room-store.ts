@@ -24,6 +24,11 @@ export const getRoom = (roomId: string): Room | null => {
   return rooms.get(roomId) ?? null;
 };
 
+export const deleteRoom = (roomId: string) => {
+  rooms.delete(roomId);
+  roomSubscribers.delete(roomId);
+};
+
 export const sendSseEvent = (
   res: Response,
   eventName: string,
