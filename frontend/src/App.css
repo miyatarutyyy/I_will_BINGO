@@ -262,6 +262,16 @@ input {
   margin: 0;
 }
 
+.leave-modal {
+  width: min(560px, 100%);
+}
+
+.leave-modal-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .icon-button {
   position: absolute;
   top: 18px;

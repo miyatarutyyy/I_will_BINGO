@@ -29,6 +29,19 @@ export const deleteRoom = (roomId: string) => {
   roomSubscribers.delete(roomId);
 };
 
+export const closeRoom = (roomId: string, eventName: string, payload: unknown) => {
+  const subscribers = roomSubscribers.get(roomId);
+
+  if (subscribers) {
+    for (const res of subscribers) {
+      sendSseEvent(res, eventName, payload);
+      res.end();
+    }
+  }
+
+  deleteRoom(roomId);
+};
+
 export const sendSseEvent = (
   res: Response,
   eventName: string,

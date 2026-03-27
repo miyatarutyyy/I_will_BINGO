@@ -26,6 +26,7 @@ import {
 import {
   addRoomSubscriber,
   broadcastRoom,
+  closeRoom,
   deleteRoom,
   getRoom,
   removeRoomSubscriber,
@@ -127,9 +128,54 @@ roomsRouter.delete("/rooms/:roomId", (req, res) => {
     return res.status(403).json({ message: "ルーム削除はホストのみ可能です。" });
   }
 
-  deleteRoom(room.id);
+  closeRoom(room.id, "room_closed", {
+    message: "ホストがルームを退室したため、ルームを閉じました。",
+  });
 
-  return res.status(200).json({ message: "ルームを削除しました。" });
+  return res.status(200).json({ message: "ルームを退室しました。" });
+});
+
+roomsRouter.post("/rooms/:roomId/leave", (req, res) => {
+  const room = getRoomOr404(req.params.roomId, res);
+
+  if (!room) return;
+
+  const playerId = req.body?.playerId;
+
+  if (typeof playerId !== "string" || playerId.trim() === "") {
+    return res.status(400).json({ message: "playerId は必須です。" });
+  }
+
+  const player = getPlayer(room, playerId);
+
+  if (!player) {
+    return res.status(404).json({ message: "プレイヤーが見つかりません。" });
+  }
+
+  if (room.hostPlayerId === playerId) {
+    return res.status(403).json({
+      message: "ホストは leave API を使用できません。",
+    });
+  }
+
+  if (room.currentSession.status === "in_progress") {
+    return res.status(409).json({
+      message: "ゲーム進行中はルームを退室できません。",
+    });
+  }
+
+  room.players = room.players.filter((currentPlayer) => currentPlayer.id !== playerId);
+  delete room.currentSession.playerStates[playerId];
+
+  if (room.currentSession.status === "waiting") {
+    room.currentSession.phase = areAllPlayersReady(room)
+      ? "waiting_for_host_start"
+      : "waiting_for_ready";
+  }
+
+  broadcastRoom(room);
+
+  return res.status(200).json({ message: "ルームを退室しました。" });
 });
 
 roomsRouter.get("/rooms/:roomId", (req, res) => {

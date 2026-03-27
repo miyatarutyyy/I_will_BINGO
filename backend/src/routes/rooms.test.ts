@@ -30,6 +30,10 @@ const deleteRoom = async (roomId: string, playerId: string) => {
   return request(app).delete(`/rooms/${roomId}`).send({ playerId });
 };
 
+const leaveRoom = async (roomId: string, playerId: string) => {
+  return request(app).post(`/rooms/${roomId}/leave`).send({ playerId });
+};
+
 const setupPlayer = async (roomId: string, playerId: string) => {
   return request(app).post(`/rooms/${roomId}/session/setup`).send({ playerId });
 };
@@ -120,7 +124,7 @@ describe.sequential("roomsRouter", () => {
     const deleteResponse = await deleteRoom(roomId, hostPlayerId);
 
     expect(deleteResponse.status).toBe(200);
-    expect(deleteResponse.body.message).toBe("ルームを削除しました。");
+    expect(deleteResponse.body.message).toBe("ルームを退室しました。");
 
     const getResponse = await request(app).get(`/rooms/${roomId}`);
 
@@ -145,6 +149,51 @@ describe.sequential("roomsRouter", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.message).toBe("playerId は必須です。");
+  });
+
+  it("非ホストは待機中ルームを退室できる", async () => {
+    const { roomId } = await createRoom();
+    const { playerId: guestPlayerId } = await joinRoom(roomId);
+
+    const leaveResponse = await leaveRoom(roomId, guestPlayerId);
+
+    expect(leaveResponse.status).toBe(200);
+    expect(leaveResponse.body.message).toBe("ルームを退室しました。");
+
+    const getResponse = await request(app).get(`/rooms/${roomId}`);
+
+    expect(getResponse.status).toBe(200);
+    expect(getResponse.body.room.players).toHaveLength(1);
+    expect(
+      getResponse.body.room.players.every(
+        (player: { id: string }) => player.id !== guestPlayerId,
+      ),
+    ).toBe(true);
+  });
+
+  it("ゲーム進行中は非ホストでも退室できない", async () => {
+    const { roomId, hostPlayerId } = await createRoom();
+    const { playerId: guestPlayerId } = await joinRoom(roomId);
+
+    await setupPlayer(roomId, hostPlayerId);
+    await setupPlayer(roomId, guestPlayerId);
+    await readyPlayer(roomId, hostPlayerId);
+    await readyPlayer(roomId, guestPlayerId);
+    await startSession(roomId, hostPlayerId);
+
+    const response = await leaveRoom(roomId, guestPlayerId);
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toBe("ゲーム進行中はルームを退室できません。");
+  });
+
+  it("ホストは leave API を使用できない", async () => {
+    const { roomId, hostPlayerId } = await createRoom();
+
+    const response = await leaveRoom(roomId, hostPlayerId);
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe("ホストは leave API を使用できません。");
   });
 
   it("全員が act すると次ラウンド待ちへ遷移し、next-round でラウンドが進む", async () => {

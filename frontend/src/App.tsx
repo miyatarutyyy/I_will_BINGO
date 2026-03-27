@@ -63,6 +63,7 @@ const App = () => {
   const [room, setRoom] = useState<Room | null>(null);
   const [screen, setScreen] = useState<Screen>("title");
   const [titleModal, setTitleModal] = useState<TitleModal>("closed");
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [pendingRoomDraft, setPendingRoomDraft] =
     useState<PendingRoomDraft | null>(null);
   const [isBusy, setIsBusy] = useState(false);
@@ -199,6 +200,25 @@ const App = () => {
       setRoom(payload.room);
       setScreen(getScreenFromRoom(payload.room));
       setSyncStatus("live");
+    });
+
+    source.addEventListener("room_closed", (event) => {
+      const payload = JSON.parse(
+        (event as MessageEvent<string>).data,
+      ) as ApiResponse;
+
+      setRoom(null);
+      setPlayerId("");
+      setRoomIdInput("");
+      setScreen("title");
+      setTitleModal("closed");
+      setIsLeaveModalOpen(false);
+      setPendingRoomDraft(null);
+      setSyncStatus("offline");
+      writeStoredValue(STORAGE_KEYS.roomId, "");
+      writeStoredValue(STORAGE_KEYS.playerId, "");
+      setNotice(payload.message ?? "ルームが閉じられました。");
+      setNoticeTone("neutral");
     });
 
     source.onopen = () => {
@@ -589,6 +609,7 @@ const App = () => {
     setRoomIdInput("");
     setScreen("title");
     setTitleModal("closed");
+    setIsLeaveModalOpen(false);
     setPendingRoomDraft(null);
     setNotice("");
     setNoticeTone("neutral");
@@ -597,6 +618,44 @@ const App = () => {
     writeStoredValue(STORAGE_KEYS.playerId, "");
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
+  };
+
+  const handleOpenLeaveModal = () => {
+    setIsLeaveModalOpen(true);
+  };
+
+  const handleCloseLeaveModal = () => {
+    setIsLeaveModalOpen(false);
+  };
+
+  const handleLeaveRoom = async () => {
+    if (!room) return;
+
+    setIsBusy(true);
+    setNotice("");
+
+    try {
+      const payload = isHost
+        ? await handleApiRequest(`/rooms/${room.id}`, {
+            method: "DELETE",
+            body: JSON.stringify({ playerId }),
+          })
+        : await handleApiRequest(`/rooms/${room.id}/leave`, {
+            method: "POST",
+            body: JSON.stringify({ playerId }),
+          });
+
+      handleReturnToTitle();
+      setNotice(payload.message ?? "ルームを退室しました。");
+      setNoticeTone("success");
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "ルーム退室に失敗しました。",
+      );
+      setNoticeTone("error");
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   const handleCopyRoomId = async () => {
@@ -658,10 +717,13 @@ const App = () => {
           isHost={isHost}
           canStart={canStart}
           isBusy={isBusy}
+          isLeaveModalOpen={isLeaveModalOpen}
           onCopyRoomId={() => void handleCopyRoomId()}
           onPrepare={() => void handlePrepare()}
           onStartSession={() => void handleStartSession()}
-          onReturnToTitle={handleReturnToTitle}
+          onOpenLeaveModal={handleOpenLeaveModal}
+          onCloseLeaveModal={handleCloseLeaveModal}
+          onConfirmLeave={() => void handleLeaveRoom()}
         />
       )}
 

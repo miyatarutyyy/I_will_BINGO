@@ -8,10 +8,13 @@ type RoomScreenProps = {
   isHost: boolean;
   canStart: boolean;
   isBusy: boolean;
+  isLeaveModalOpen: boolean;
   onCopyRoomId: () => void;
   onPrepare: () => void;
   onStartSession: () => void;
-  onReturnToTitle: () => void;
+  onOpenLeaveModal: () => void;
+  onCloseLeaveModal: () => void;
+  onConfirmLeave: () => void;
 };
 
 export const RoomScreen = ({
@@ -21,11 +24,18 @@ export const RoomScreen = ({
   isHost,
   canStart,
   isBusy,
+  isLeaveModalOpen,
   onCopyRoomId,
   onPrepare,
   onStartSession,
-  onReturnToTitle,
+  onOpenLeaveModal,
+  onCloseLeaveModal,
+  onConfirmLeave,
 }: RoomScreenProps) => {
+  const leaveConfirmMessage = isHost
+    ? "ホストプレイヤーが退室すると、参加している他のプレイヤーも退室します。退室してよろしいですか？"
+    : "ホストプレイヤーが参加を締め切った後の再入室はできません。ルームを退室してよろしいですか？";
+
   return (
     <main className="screen room-screen">
       <section className="room-hero">
@@ -129,13 +139,45 @@ export const RoomScreen = ({
           <button
             type="button"
             className="secondary-button"
-            onClick={onReturnToTitle}
+            onClick={onOpenLeaveModal}
             disabled={isBusy}
           >
-            タイトルに戻る
+            ルームを退室する
           </button>
         </aside>
       </section>
+
+      {isLeaveModalOpen ? (
+        <div className="modal-overlay" role="presentation">
+          <section
+            className="title-modal leave-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="leave-modal-heading"
+          >
+            <h2 id="leave-modal-heading">ルームを退室する</h2>
+            <p className="panel-copy">{leaveConfirmMessage}</p>
+            <div className="leave-modal-actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={onConfirmLeave}
+                disabled={isBusy}
+              >
+                はい
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={onCloseLeaveModal}
+                disabled={isBusy}
+              >
+                いいえ
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 };
