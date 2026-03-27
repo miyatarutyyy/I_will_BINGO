@@ -257,9 +257,9 @@ const App = () => {
 
   const resultHeadline =
     winners.length === 1
-      ? `${winners[0].name}がビンゴしました!`
+      ? `${winners[0].name}の優勝!`
       : winners.length > 1
-        ? `${winners.map((winner) => winner.name).join(" / ")}がビンゴしました!`
+        ? `${winners.map((winner) => winner.name).join(" / ")}の優勝!`
         : getEndReasonLabel(room?.currentSession.endReason ?? null);
 
   useEffect(() => {
@@ -891,9 +891,6 @@ const App = () => {
         <div>
           <p className="panel-kicker">Room Lobby</p>
           <h2>ルーム待機画面</h2>
-          <p className="panel-copy">
-            ルームIDを他のプレイヤーに共有し、全員の準備完了を待ちます。
-          </p>
         </div>
         <div className="room-id-card">
           <span>ROOM ID</span>
@@ -947,10 +944,7 @@ const App = () => {
         </article>
 
         <aside className="panel action-panel">
-          <h3>あなたの操作</h3>
-          <p className="panel-copy">
-            現在の backend 仕様では、待機中にカード配布と FREE マス開放を済ませてからホストが開始します。
-          </p>
+          <h3>準備</h3>
 
           {currentPlayer && !currentPlayer.isReadyForStart ? (
             <button
@@ -959,10 +953,10 @@ const App = () => {
               onClick={handlePrepare}
               disabled={isBusy || currentPhase !== "waiting_for_ready"}
             >
-              {currentPlayer.card ? "FREEマスを開いて準備完了" : "カードを受け取って準備完了"}
+              準備OK
             </button>
           ) : (
-            <div className="info-card success">あなたの準備は完了しています。</div>
+            <div className="info-card success">準備完了</div>
           )}
 
           {isHost ? (
@@ -975,7 +969,7 @@ const App = () => {
               セッションを開始
             </button>
           ) : (
-            <div className="info-card">ホストがセッション開始を行うまで待機します。</div>
+            <div className="info-card">ホストの開始を待機中です。</div>
           )}
 
           <button
@@ -1107,15 +1101,12 @@ const App = () => {
   const renderResultScreen = () => (
     <main className="screen result-screen">
       <section className="result-header">
-        <p className="panel-kicker">Result</p>
-        <h2>セッション終了</h2>
-        <p className="panel-copy">{resultHeadline}</p>
+        <h2>{resultHeadline}</h2>
       </section>
 
       <section className="winner-stack">
         {winners.map((winner) => {
           const highlightedPositions = getHighlightedCellSet(winner.card);
-          const highlightedLines = getHighlightedLines(winner.card);
 
           return (
             <article key={winner.id} className="panel winner-panel">
@@ -1124,15 +1115,6 @@ const App = () => {
                 <span className="status-badge champion">WINNER</span>
               </div>
               {renderCard(winner.card, { highlightedPositions })}
-              <p className="panel-copy">
-                ビンゴライン:
-                {" "}
-                {highlightedLines.length > 0
-                  ? highlightedLines
-                      .map((line) => `[${line.map((value) => value + 1).join(", ")}]`)
-                      .join(" ")
-                  : "なし"}
-              </p>
             </article>
           );
         })}
@@ -1144,7 +1126,7 @@ const App = () => {
           className="primary-button"
           onClick={handleReturnToTitle}
         >
-          タイトルに戻る
+          ゲームを終了
         </button>
       </div>
     </main>

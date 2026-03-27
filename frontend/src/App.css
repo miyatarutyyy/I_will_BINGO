@@ -365,6 +365,13 @@ input {
   flex-wrap: wrap;
 }
 
+.result-header {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
 .room-id-card,
 .session-stats div,
 .info-card {
