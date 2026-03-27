@@ -407,6 +407,13 @@ input {
   flex-wrap: wrap;
 }
 
+.game-topbar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 140px;
+}
+
 .result-header {
   min-height: 220px;
   display: grid;
@@ -572,8 +579,21 @@ input {
   gap: 8px;
 }
 
+.current-number-card {
+  min-width: 120px;
+  padding: 16px 22px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
 .session-stats strong {
   font-size: 1.6rem;
+}
+
+.current-number-card strong {
+  font-size: clamp(2.8rem, 8vw, 4.8rem);
+  line-height: 1;
 }
 
 .board-panel {
@@ -603,21 +623,22 @@ input {
 
 .card-cell.opened {
   background: linear-gradient(180deg, #fff59d, #ffe082);
-  border-color: rgba(253, 216, 53, 0.54);
+  border: 2px solid rgba(253, 216, 53, 0.54);
 }
 
 .card-cell.free {
   background: linear-gradient(180deg, #c8e6c9, #a5d6a7);
+  border: 2px solid green;
 }
 
 .card-cell.target {
-  border-color: rgba(244, 67, 54, 0.92);
+  border: 2px solid rgba(244, 67, 54, 0.92);
   box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.18);
 }
 
 .card-cell.winning {
-  border-color: rgba(76, 175, 80, 0.9);
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.18);
+  border: 2px solid rgba(76, 175, 80, 0.9);
+  background: linear-gradient(180deg, #c8e6c9, #a5d6a7);
 }
 
 .cell-value {

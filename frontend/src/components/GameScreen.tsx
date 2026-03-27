@@ -91,29 +91,8 @@ export const GameScreen = ({
   return (
     <main className="screen game-screen">
       <section className="game-topbar">
-        <div>
-          {
-            //<p className="panel-kicker">Game Session</p>
-          }
-          <h2>Round {room?.currentSession.round}</h2>
-        </div>
-        <div className="session-stats">
-          <div>
-            <span>現在の番号</span>
-            <strong>{room?.currentSession.currentDrawnNumber ?? "-"}</strong>
-          </div>
-          {
-            // <div>
-            //   <span>フェーズ</span>
-            //   <strong>{getPhaseLabel(currentPhase)}</strong>
-            // </div>
-          }
-          {
-            //<div hidden>
-            //<span>同期</span>
-            //<strong>{syncStatus}</strong>
-            //</div>
-          }
+        <div className="current-number-card">
+          <strong>{room?.currentSession.currentDrawnNumber ?? "-"}</strong>
         </div>
       </section>
 

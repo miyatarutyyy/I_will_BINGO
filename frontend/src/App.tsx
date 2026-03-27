@@ -103,6 +103,9 @@ const App = () => {
       : winners.length > 1
         ? `${winners.map((winner) => winner.name).join(" / ")}の優勝!`
         : getEndReasonLabel(room?.currentSession.endReason ?? null);
+  const shouldShowNotice =
+    notice !== "" &&
+    (noticeTone !== "success" || notice === "ルームIDをコピーしました。");
 
   useEffect(() => {
     writeStoredValue(STORAGE_KEYS.playerName, playerName);
@@ -681,7 +684,7 @@ const App = () => {
       <div className="background-orb orb-b" />
       <div className="background-orb orb-c" />
 
-      {notice ? (
+      {shouldShowNotice ? (
         <div className={`notice-banner is-visible ${noticeTone}`}>{notice}</div>
       ) : null}
 
