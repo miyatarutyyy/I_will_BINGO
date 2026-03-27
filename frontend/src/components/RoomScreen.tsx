@@ -3,7 +3,6 @@ import type { PlayerSummary, Room, RoundPhase } from "../types/game";
 
 type RoomScreenProps = {
   room: Room | null;
-  playerId: string;
   currentPlayer: PlayerSummary | null;
   currentPhase: RoundPhase;
   isHost: boolean;
@@ -17,7 +16,6 @@ type RoomScreenProps = {
 
 export const RoomScreen = ({
   room,
-  playerId,
   currentPlayer,
   currentPhase,
   isHost,
@@ -31,9 +29,11 @@ export const RoomScreen = ({
   return (
     <main className="screen room-screen">
       <section className="room-hero">
-        <div>
-          <p className="panel-kicker">Room Lobby</p>
+        <div style={{ display: "flex" }}>
           <h2>ルーム待機画面</h2>
+          {
+            //<p className="panel-kicker">Room Lobby</p>
+          }
         </div>
         <div className="room-id-card">
           <span>ROOM ID</span>
@@ -54,30 +54,22 @@ export const RoomScreen = ({
       <section className="room-layout">
         <article className="panel">
           <div className="panel-header-row">
-            <h3>プレイヤー</h3>
+            <h3>プレイヤーリスト</h3>
             <span className="status-badge">{getPhaseLabel(currentPhase)}</span>
           </div>
           <div className="player-list">
             {room?.players.map((player) => {
-              const isCurrent = player.id === playerId;
-              const hasCard = player.card !== null;
-
               return (
-                <div key={player.id} className={`player-row ${isCurrent ? "current" : ""}`}>
+                <div key={player.id} className="player-row">
                   <div>
                     <strong>
                       {player.name}
                       {player.id === room.hostPlayerId ? " / HOST" : ""}
                     </strong>
-                    <p>
-                      {player.isReadyForStart
-                        ? "準備完了"
-                        : hasCard
-                          ? "FREE マス待ち"
-                          : "カード未配布"}
-                    </p>
                   </div>
-                  <span className={`mini-badge ${player.isReadyForStart ? "ready" : ""}`}>
+                  <span
+                    className={`mini-badge ${player.isReadyForStart ? "ready" : ""}`}
+                  >
                     {player.isReadyForStart ? "READY" : "WAIT"}
                   </span>
                 </div>
@@ -87,8 +79,6 @@ export const RoomScreen = ({
         </article>
 
         <aside className="panel action-panel">
-          <h3>準備</h3>
-
           {currentPlayer && !currentPlayer.isReadyForStart ? (
             <button
               type="button"
@@ -96,23 +86,44 @@ export const RoomScreen = ({
               onClick={onPrepare}
               disabled={isBusy || currentPhase !== "waiting_for_ready"}
             >
-              準備OK
+              {isHost ? "参加を締め切る" : "準備ができたら押してください"}
             </button>
           ) : (
-            <div className="info-card success">準備完了</div>
+            <button
+              type="button"
+              className="info-card success status-button"
+              disabled
+            >
+              準備完了
+            </button>
           )}
 
           {isHost ? (
-            <button
-              type="button"
-              className="primary-button accent-button"
-              onClick={onStartSession}
-              disabled={isBusy || !canStart}
-            >
-              セッションを開始
-            </button>
+            canStart ? (
+              <button
+                type="button"
+                className="primary-button accent-button"
+                onClick={onStartSession}
+                disabled={isBusy}
+              >
+                セッションを開始
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary-button accent-button"
+                onClick={onStartSession}
+                disabled
+              >
+                全員が準備できたら開始できます
+              </button>
+            )
           ) : (
-            <div className="info-card">ホストの開始を待機中です。</div>
+            <button type="button" className="info-card status-button" disabled>
+              {getPhaseLabel(currentPhase) === "開始待ち"
+                ? "ホストが開始するまで待ってください"
+                : "他のプレイヤーが準備中です"}
+            </button>
           )}
 
           <button

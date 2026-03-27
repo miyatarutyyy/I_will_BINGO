@@ -63,9 +63,8 @@ const App = () => {
   const [room, setRoom] = useState<Room | null>(null);
   const [screen, setScreen] = useState<Screen>("title");
   const [titleModal, setTitleModal] = useState<TitleModal>("closed");
-  const [pendingRoomDraft, setPendingRoomDraft] = useState<PendingRoomDraft | null>(
-    null,
-  );
+  const [pendingRoomDraft, setPendingRoomDraft] =
+    useState<PendingRoomDraft | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [notice, setNotice] = useState("");
@@ -148,7 +147,9 @@ const App = () => {
           setPlayerId("");
           setRoomIdInput("");
           setScreen("title");
-          setNotice(getApiMessage(payload, "保存済みのルームを復元できませんでした。"));
+          setNotice(
+            getApiMessage(payload, "保存済みのルームを復元できませんでした。"),
+          );
           setNoticeTone("error");
           return;
         }
@@ -158,7 +159,9 @@ const App = () => {
         setNotice("前回のルーム接続を復元しました。");
         setNoticeTone("neutral");
       } catch {
-        setNotice("ルーム復元に失敗しました。backend が起動しているか確認してください。");
+        setNotice(
+          "ルーム復元に失敗しました。backend が起動しているか確認してください。",
+        );
         setNoticeTone("error");
       } finally {
         setIsBootstrapping(false);
@@ -187,7 +190,9 @@ const App = () => {
     setSyncStatus("connecting");
 
     source.addEventListener("room_updated", (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as ApiResponse;
+      const payload = JSON.parse(
+        (event as MessageEvent<string>).data,
+      ) as ApiResponse;
 
       if (!payload.room) return;
 
@@ -242,8 +247,16 @@ const App = () => {
     }
   };
 
-  const copyText = async (value: string, successMessage: string) => {
-    if (value === "") return;
+  const copyText = async (
+    value: string,
+    successMessage: string,
+    errorMessage: string,
+  ) => {
+    if (value === "") {
+      setNotice(errorMessage);
+      setNoticeTone("error");
+      return;
+    }
 
     try {
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
@@ -256,14 +269,18 @@ const App = () => {
         textarea.style.left = "-9999px";
         document.body.appendChild(textarea);
         textarea.select();
-        document.execCommand("copy");
+        const didCopy = document.execCommand("copy");
         document.body.removeChild(textarea);
+
+        if (!didCopy) {
+          throw new Error("copy failed");
+        }
       }
 
       setNotice(successMessage);
       setNoticeTone("success");
     } catch {
-      setNotice("ルームIDのコピーに失敗しました。");
+      setNotice(errorMessage);
       setNoticeTone("error");
     }
   };
@@ -297,7 +314,9 @@ const App = () => {
       setRoomIdInput(payload.room.id);
       setTitleModal("create");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "ルーム作成に失敗しました。");
+      setNotice(
+        error instanceof Error ? error.message : "ルーム作成に失敗しました。",
+      );
       setNoticeTone("error");
     } finally {
       setIsBusy(false);
@@ -335,7 +354,9 @@ const App = () => {
       setRoomIdInput("");
       setTitleModal("closed");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "ルーム削除に失敗しました。");
+      setNotice(
+        error instanceof Error ? error.message : "ルーム削除に失敗しました。",
+      );
       setNoticeTone("error");
     } finally {
       setIsBusy(false);
@@ -397,7 +418,9 @@ const App = () => {
       setNotice(payload.message ?? "ルームに参加しました。");
       setNoticeTone("success");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "ルーム参加に失敗しました。");
+      setNotice(
+        error instanceof Error ? error.message : "ルーム参加に失敗しました。",
+      );
       setNoticeTone("error");
     } finally {
       setIsBusy(false);
@@ -414,10 +437,13 @@ const App = () => {
       let latestRoom = room;
 
       if (!currentPlayer.card) {
-        const setupPayload = await handleApiRequest(`/rooms/${room.id}/session/setup`, {
-          method: "POST",
-          body: JSON.stringify({ playerId }),
-        });
+        const setupPayload = await handleApiRequest(
+          `/rooms/${room.id}/session/setup`,
+          {
+            method: "POST",
+            body: JSON.stringify({ playerId }),
+          },
+        );
 
         if (!setupPayload.room) {
           throw new Error("カード作成レスポンスが不正です。");
@@ -427,10 +453,13 @@ const App = () => {
         setRoom(latestRoom);
       }
 
-      const readyPayload = await handleApiRequest(`/rooms/${room.id}/session/ready`, {
-        method: "POST",
-        body: JSON.stringify({ playerId }),
-      });
+      const readyPayload = await handleApiRequest(
+        `/rooms/${room.id}/session/ready`,
+        {
+          method: "POST",
+          body: JSON.stringify({ playerId }),
+        },
+      );
 
       if (!readyPayload.room) {
         throw new Error("準備完了レスポンスが不正です。");
@@ -444,7 +473,9 @@ const App = () => {
       );
       setNoticeTone("success");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "準備処理に失敗しました。");
+      setNotice(
+        error instanceof Error ? error.message : "準備処理に失敗しました。",
+      );
       setNoticeTone("error");
     } finally {
       setIsBusy(false);
@@ -458,10 +489,13 @@ const App = () => {
     setNotice("");
 
     try {
-      const payload = await handleApiRequest(`/rooms/${room.id}/session/start`, {
-        method: "POST",
-        body: JSON.stringify({ playerId }),
-      });
+      const payload = await handleApiRequest(
+        `/rooms/${room.id}/session/start`,
+        {
+          method: "POST",
+          body: JSON.stringify({ playerId }),
+        },
+      );
 
       if (!payload.room) {
         throw new Error("開始レスポンスが不正です。");
@@ -471,7 +505,11 @@ const App = () => {
       setNotice(payload.message ?? "セッションを開始しました。");
       setNoticeTone("success");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "セッション開始に失敗しました。");
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "セッション開始に失敗しました。",
+      );
       setNoticeTone("error");
     } finally {
       setIsBusy(false);
@@ -502,7 +540,9 @@ const App = () => {
       );
       setNoticeTone("success");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "アクションに失敗しました。");
+      setNotice(
+        error instanceof Error ? error.message : "アクションに失敗しました。",
+      );
       setNoticeTone("error");
     } finally {
       setIsBusy(false);
@@ -516,10 +556,13 @@ const App = () => {
     setNotice("");
 
     try {
-      const payload = await handleApiRequest(`/rooms/${room.id}/session/next-round`, {
-        method: "POST",
-        body: JSON.stringify({ playerId }),
-      });
+      const payload = await handleApiRequest(
+        `/rooms/${room.id}/session/next-round`,
+        {
+          method: "POST",
+          body: JSON.stringify({ playerId }),
+        },
+      );
 
       if (!payload.room) {
         throw new Error("次ラウンドレスポンスが不正です。");
@@ -529,7 +572,11 @@ const App = () => {
       setNotice(payload.message ?? "次のラウンドへ進みました。");
       setNoticeTone("success");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "次ラウンド開始に失敗しました。");
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "次ラウンド開始に失敗しました。",
+      );
       setNoticeTone("error");
     } finally {
       setIsBusy(false);
@@ -554,11 +601,19 @@ const App = () => {
 
   const handleCopyRoomId = async () => {
     if (!room?.id) return;
-    await copyText(room.id, "ルームIDをコピーしました。");
+    await copyText(
+      room.id,
+      "ルームIDをコピーしました。",
+      "ルームIDのコピーに失敗しました。",
+    );
   };
 
   const handleCopyDraftRoomId = async () => {
-    await copyText(pendingRoomDraft?.room.id ?? "", "ルームIDをコピーしました。");
+    await copyText(
+      pendingRoomDraft?.room.id ?? "",
+      "ルームIDをコピーしました。",
+      "ルームIDのコピーに失敗しました。",
+    );
   };
 
   return (
@@ -567,9 +622,13 @@ const App = () => {
       <div className="background-orb orb-b" />
       <div className="background-orb orb-c" />
 
-      {notice ? <div className={`notice-banner ${noticeTone}`}>{notice}</div> : null}
+      {notice ? (
+        <div className={`notice-banner is-visible ${noticeTone}`}>{notice}</div>
+      ) : null}
 
-      {isBootstrapping && <div className="boot-message">保存済みルームを確認しています...</div>}
+      {isBootstrapping && (
+        <div className="boot-message">保存済みルームを確認しています...</div>
+      )}
 
       {!isBootstrapping && screen === "title" && (
         <TitleScreen
@@ -594,7 +653,6 @@ const App = () => {
       {!isBootstrapping && screen === "room" && (
         <RoomScreen
           room={room}
-          playerId={playerId}
           currentPlayer={currentPlayer}
           currentPhase={currentPhase}
           isHost={isHost}
@@ -626,7 +684,9 @@ const App = () => {
         <ResultScreen
           resultHeadline={resultHeadline}
           winners={winners}
-          getHighlightedPositions={(player) => getHighlightedCellSet(player.card)}
+          getHighlightedPositions={(player) =>
+            getHighlightedCellSet(player.card)
+          }
           onReturnToTitle={handleReturnToTitle}
           isBusy={isBusy}
         />

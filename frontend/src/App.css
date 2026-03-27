@@ -1,14 +1,22 @@
 :root {
   color: #263238;
-  font-family:
-    "Avenir Next",
-    "Hiragino Sans",
-    "Yu Gothic",
-    sans-serif;
+  font-family: "Avenir Next", "Hiragino Sans", "Yu Gothic", sans-serif;
   background:
-    radial-gradient(circle at 15% 10%, rgba(255, 235, 59, 0.2), transparent 26%),
-    radial-gradient(circle at 82% 18%, rgba(76, 175, 80, 0.16), transparent 24%),
-    radial-gradient(circle at 68% 76%, rgba(244, 67, 54, 0.08), transparent 18%),
+    radial-gradient(
+      circle at 15% 10%,
+      rgba(255, 235, 59, 0.2),
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at 82% 18%,
+      rgba(76, 175, 80, 0.16),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 68% 76%,
+      rgba(244, 67, 54, 0.08),
+      transparent 18%
+    ),
     linear-gradient(180deg, #ffffff 0%, #fffef8 48%, #f7fbf4 100%);
 }
 
@@ -110,6 +118,24 @@ input {
   right: 18px;
   z-index: 20;
   width: min(360px, calc(100vw - 36px));
+  opacity: 0;
+  transform: translateY(-14px) scale(0.98);
+  filter: blur(8px);
+  transition:
+    opacity 240ms ease,
+    transform 240ms ease,
+    filter 240ms ease;
+  will-change: opacity, transform, filter;
+}
+
+.notice-banner.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.notice-banner.is-hidden {
+  pointer-events: none;
 }
 
 .notice-banner.neutral,
@@ -165,10 +191,7 @@ input {
 
 .title-panel h1 {
   max-width: 12ch;
-  font-family:
-    Impact,
-    "Arial Narrow Bold",
-    sans-serif;
+  font-family: Impact, "Arial Narrow Bold", sans-serif;
   font-size: clamp(3.8rem, 11vw, 7.4rem);
   line-height: 0.88;
   letter-spacing: 0.04em;
@@ -292,7 +315,7 @@ input {
 
 .modal-room-id strong {
   font-size: 1.45rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.08rem;
 }
 
 .modal-field {
@@ -307,7 +330,10 @@ input {
   border-radius: 999px;
   font-weight: 800;
   letter-spacing: 0.02em;
-  transition: filter 0.16s ease, opacity 0.16s ease, background 0.16s ease;
+  transition:
+    filter 0.16s ease,
+    opacity 0.16s ease,
+    background 0.16s ease;
 }
 
 .primary-button {
@@ -383,6 +409,7 @@ input {
 
 .room-id-card {
   min-width: 240px;
+  width: 100%;
   padding: 18px 20px;
   display: grid;
   gap: 8px;
@@ -391,12 +418,12 @@ input {
 .room-id-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
 .room-id-card strong {
-  font-size: 1.7rem;
+  font-size: 1.3rem;
   letter-spacing: 0.08em;
 }
 
@@ -433,6 +460,12 @@ input {
   gap: 14px;
 }
 
+.panel-header-row {
+  border-bottom: 1px solid rgba(176, 190, 197, 0.28);
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+}
+
 .status-badge,
 .mini-badge {
   padding: 8px 12px;
@@ -452,6 +485,7 @@ input {
 }
 
 .player-row {
+  min-height: 64px;
   padding: 16px 0;
   border-bottom: 1px solid rgba(176, 190, 197, 0.28);
 }
@@ -472,6 +506,10 @@ input {
   color: #607d8b;
 }
 
+.player-list {
+  gap: 0;
+}
+
 .player-list.compact .player-row:last-child,
 .player-list .player-row:last-child {
   border-bottom: 0;
@@ -480,6 +518,15 @@ input {
 .info-card {
   padding: 16px;
   color: #546e7a;
+}
+
+.status-button {
+  width: 100%;
+  padding: 15px 18px;
+  border-radius: 999px;
+  text-align: center;
+  font: inherit;
+  letter-spacing: 0.02em;
 }
 
 .info-card.success {
