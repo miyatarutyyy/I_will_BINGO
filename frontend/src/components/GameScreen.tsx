@@ -1,5 +1,4 @@
 import { BingoCardView } from "./BingoCardView";
-import { getPhaseLabel } from "../lib/game";
 import type { PlayerSummary, Room, RoundPhase } from "../types/game";
 
 type GameScreenProps = {
@@ -18,7 +17,6 @@ type GameScreenProps = {
 export const GameScreen = ({
   room,
   currentPlayer,
-  currentPhase,
   syncStatus,
   isHost,
   isBusy,
@@ -96,10 +94,12 @@ export const GameScreen = ({
             <span>現在の番号</span>
             <strong>{room?.currentSession.currentDrawnNumber ?? "-"}</strong>
           </div>
-          <div>
-            <span>フェーズ</span>
-            <strong>{getPhaseLabel(currentPhase)}</strong>
-          </div>
+          {
+            // <div>
+            //   <span>フェーズ</span>
+            //   <strong>{getPhaseLabel(currentPhase)}</strong>
+            // </div>
+          }
           {
             //<div hidden>
             //<span>同期</span>
