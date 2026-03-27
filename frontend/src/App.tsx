@@ -1,86 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+
+import { GameScreen } from "./components/GameScreen";
+import { ResultScreen } from "./components/ResultScreen";
+import { RoomScreen } from "./components/RoomScreen";
+import { TitleScreen } from "./components/TitleScreen";
+import {
+  getApiMessage,
+  getEndReasonLabel,
+  getHighlightedCellSet,
+  getPlayerById,
+  getScreenFromRoom,
+  trimText,
+} from "./lib/game";
+import type {
+  ApiResponse,
+  NoticeTone,
+  PendingRoomDraft,
+  Room,
+  Screen,
+  TitleModal,
+} from "./types/game";
 import "./App.css";
-
-type BingoCell = {
-  positionId: number;
-  value: number | null;
-  isOpened: boolean;
-  isFree: boolean;
-};
-
-type BingoCard = {
-  cells: BingoCell[];
-};
-
-type SessionStatus = "waiting" | "in_progress" | "finished";
-type SessionEndReason = null | "bingo" | "all_numbers_drawn";
-type RoundPhase =
-  | "waiting_for_ready"
-  | "waiting_for_host_start"
-  | "waiting_for_player_actions"
-  | "waiting_for_host_next_round"
-  | "finished";
-
-type SessionEndCondition = {
-  bingoCount: number;
-  finishWhenAllNumbersDrawn: boolean;
-};
-
-type PlayerSummary = {
-  id: string;
-  name: string;
-  isReadyForStart: boolean;
-  hasActedThisRound: boolean;
-  card: BingoCard | null;
-  openedPositionIds?: number[];
-  bingoCount?: number;
-  reachCount?: number;
-};
-
-type GameSession = {
-  id: string;
-  status: SessionStatus;
-  phase: RoundPhase;
-  round: number;
-  currentDrawnNumber: number | null;
-  drawnNumbers: number[];
-  endReason: SessionEndReason;
-  winners: string[];
-  endCondition: SessionEndCondition;
-  playerStates: Record<
-    string,
-    {
-      card: BingoCard | null;
-      isReadyForStart: boolean;
-      hasActedThisRound: boolean;
-    }
-  >;
-};
-
-type Room = {
-  id: string;
-  hostPlayerId: string;
-  players: PlayerSummary[];
-  currentSession: GameSession;
-};
-
-type ApiResponse = {
-  message?: string;
-  playerId?: string;
-  room?: Room;
-  player?: PlayerSummary;
-  drawNumber?: number | null;
-};
-
-type Screen = "title" | "room" | "game" | "result";
-type NoticeTone = "neutral" | "error" | "success";
-type TitleModal = "closed" | "create" | "join";
-
-type PendingRoomDraft = {
-  room: Room;
-  playerId: string;
-};
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:3000";
@@ -90,33 +31,6 @@ const STORAGE_KEYS = {
   roomId: "iwillbingo:roomId",
   playerId: "iwillbingo:playerId",
 } as const;
-
-const CARD_SIZE = 5;
-
-const ALL_LINES = (() => {
-  const lines: number[][] = [];
-
-  for (let row = 0; row < CARD_SIZE; row += 1) {
-    const line: number[] = [];
-    for (let col = 0; col < CARD_SIZE; col += 1) {
-      line.push(row * CARD_SIZE + col);
-    }
-    lines.push(line);
-  }
-
-  for (let col = 0; col < CARD_SIZE; col += 1) {
-    const line: number[] = [];
-    for (let row = 0; row < CARD_SIZE; row += 1) {
-      line.push(row * CARD_SIZE + col);
-    }
-    lines.push(line);
-  }
-
-  lines.push([0, 6, 12, 18, 24]);
-  lines.push([4, 8, 12, 16, 20]);
-
-  return lines;
-})();
 
 const readStoredValue = (key: string) => {
   if (typeof window === "undefined") return "";
@@ -132,74 +46,6 @@ const writeStoredValue = (key: string, value: string) => {
   }
 
   window.sessionStorage.setItem(key, value);
-};
-
-const trimText = (value: string) => value.trim();
-
-const getApiMessage = (payload: unknown, fallback: string) => {
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "message" in payload &&
-    typeof payload.message === "string"
-  ) {
-    return payload.message;
-  }
-
-  return fallback;
-};
-
-const getScreenFromRoom = (room: Room | null): Screen => {
-  if (!room) return "title";
-  if (room.currentSession.status === "finished") return "result";
-  if (room.currentSession.status === "in_progress") return "game";
-  return "room";
-};
-
-const getPlayerById = (room: Room | null, playerId: string) => {
-  if (!room || playerId === "") return null;
-  return room.players.find((player) => player.id === playerId) ?? null;
-};
-
-const getHighlightedLines = (card: BingoCard | null) => {
-  if (!card) return [];
-
-  return ALL_LINES.filter((line) =>
-    line.every((positionId) => card.cells[positionId]?.isOpened),
-  );
-};
-
-const getHighlightedCellSet = (card: BingoCard | null) => {
-  const positions = new Set<number>();
-
-  for (const line of getHighlightedLines(card)) {
-    for (const positionId of line) {
-      positions.add(positionId);
-    }
-  }
-
-  return positions;
-};
-
-const getPhaseLabel = (phase: RoundPhase) => {
-  switch (phase) {
-    case "waiting_for_ready":
-      return "準備中";
-    case "waiting_for_host_start":
-      return "開始待ち";
-    case "waiting_for_player_actions":
-      return "アクション待ち";
-    case "waiting_for_host_next_round":
-      return "次ラウンド待ち";
-    case "finished":
-      return "終了";
-  }
-};
-
-const getEndReasonLabel = (reason: SessionEndReason) => {
-  if (reason === "bingo") return "誰かがビンゴしました";
-  if (reason === "all_numbers_drawn") return "全ての番号が抽選されました";
-  return "ゲーム終了";
 };
 
 const App = () => {
@@ -225,9 +71,9 @@ const App = () => {
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState<NoticeTone>("neutral");
   const [syncStatus, setSyncStatus] = useState("offline");
+
   const roomId = room?.id ?? null;
   const currentScreenValue = getScreenFromRoom(room);
-
   const currentPlayer = getPlayerById(room, playerId);
   const isHost = room !== null && playerId === room.hostPlayerId;
   const currentPhase = room?.currentSession.phase ?? "waiting_for_ready";
@@ -235,7 +81,6 @@ const App = () => {
     isHost &&
     room?.currentSession.status === "waiting" &&
     room.currentSession.phase === "waiting_for_host_start";
-
   const matchingCell =
     currentPlayer?.card?.cells.find(
       (cell) =>
@@ -243,18 +88,15 @@ const App = () => {
         !cell.isOpened &&
         cell.value === room?.currentSession.currentDrawnNumber,
     ) ?? null;
-
   const canAct =
     room?.currentSession.status === "in_progress" &&
     room.currentSession.phase === "waiting_for_player_actions" &&
     currentPlayer !== null &&
     !currentPlayer.hasActedThisRound;
-
   const winners =
     room?.players.filter((player) =>
       room.currentSession.winners.includes(player.id),
     ) ?? [];
-
   const resultHeadline =
     winners.length === 1
       ? `${winners[0].name}の優勝!`
@@ -514,6 +356,10 @@ const App = () => {
     setTitleModal("join");
   };
 
+  const handleCloseJoinModal = () => {
+    setTitleModal("closed");
+  };
+
   const handleJoinRoom = async (event: FormEvent) => {
     event.preventDefault();
 
@@ -568,13 +414,10 @@ const App = () => {
       let latestRoom = room;
 
       if (!currentPlayer.card) {
-        const setupPayload = await handleApiRequest(
-          `/rooms/${room.id}/session/setup`,
-          {
-            method: "POST",
-            body: JSON.stringify({ playerId }),
-          },
-        );
+        const setupPayload = await handleApiRequest(`/rooms/${room.id}/session/setup`, {
+          method: "POST",
+          body: JSON.stringify({ playerId }),
+        });
 
         if (!setupPayload.room) {
           throw new Error("カード作成レスポンスが不正です。");
@@ -584,13 +427,10 @@ const App = () => {
         setRoom(latestRoom);
       }
 
-      const readyPayload = await handleApiRequest(
-        `/rooms/${room.id}/session/ready`,
-        {
-          method: "POST",
-          body: JSON.stringify({ playerId }),
-        },
-      );
+      const readyPayload = await handleApiRequest(`/rooms/${room.id}/session/ready`, {
+        method: "POST",
+        body: JSON.stringify({ playerId }),
+      });
 
       if (!readyPayload.room) {
         throw new Error("準備完了レスポンスが不正です。");
@@ -676,13 +516,10 @@ const App = () => {
     setNotice("");
 
     try {
-      const payload = await handleApiRequest(
-        `/rooms/${room.id}/session/next-round`,
-        {
-          method: "POST",
-          body: JSON.stringify({ playerId }),
-        },
-      );
+      const payload = await handleApiRequest(`/rooms/${room.id}/session/next-round`, {
+        method: "POST",
+        body: JSON.stringify({ playerId }),
+      });
 
       if (!payload.room) {
         throw new Error("次ラウンドレスポンスが不正です。");
@@ -720,431 +557,9 @@ const App = () => {
     await copyText(room.id, "ルームIDをコピーしました。");
   };
 
-  const renderCard = (
-    card: BingoCard | null,
-    options?: {
-      interactive?: boolean;
-      highlightedPositions?: Set<number>;
-    },
-  ) => {
-    if (!card) {
-      return <p className="empty-state">カードはまだ配布されていません。</p>;
-    }
-
-    return (
-      <div className="bingo-card">
-        {card.cells.map((cell) => {
-          const isDrawTarget =
-            options?.interactive === true &&
-            matchingCell?.positionId === cell.positionId;
-          const isHighlighted =
-            options?.highlightedPositions?.has(cell.positionId) ?? false;
-
-          return (
-            <button
-              key={cell.positionId}
-              type="button"
-              className={[
-                "card-cell",
-                cell.isOpened ? "opened" : "",
-                cell.isFree ? "free" : "",
-                isDrawTarget ? "target" : "",
-                isHighlighted ? "winning" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              disabled={!isDrawTarget || isBusy}
-              onClick={isDrawTarget ? handleAct : undefined}
-            >
-              <span className="cell-value">{cell.isFree ? "FREE" : cell.value}</span>
-            </button>
-          );
-        })}
-      </div>
-    );
+  const handleCopyDraftRoomId = async () => {
+    await copyText(pendingRoomDraft?.room.id ?? "", "ルームIDをコピーしました。");
   };
-
-  const renderTitleScreen = () => (
-    <main className="screen title-screen">
-      <section className="title-panel">
-        <p className="panel-kicker">Online Room Bingo</p>
-        <h1>I Will BINGO</h1>
-        <label className="field">
-          <span>playerName</span>
-          <input
-            value={playerName}
-            onChange={(event) => setPlayerName(event.target.value)}
-            placeholder="あなたの名前"
-            maxLength={24}
-          />
-        </label>
-
-        <div className="join-stack">
-          <button
-            type="button"
-            className="primary-button"
-            onClick={handleOpenCreateModal}
-            disabled={isBusy || isBootstrapping}
-          >
-            ルームを作成
-          </button>
-
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={handleOpenJoinModal}
-            disabled={isBusy || isBootstrapping}
-          >
-            ルームに参加
-          </button>
-        </div>
-      </section>
-
-      {titleModal !== "closed" ? (
-        <div className="modal-overlay" role="presentation">
-          <section
-            className="title-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="title-modal-heading"
-          >
-            <button
-              type="button"
-              className="icon-button"
-              onClick={
-                titleModal === "create"
-                  ? handleCancelCreateModal
-                  : () => setTitleModal("closed")
-              }
-              disabled={isBusy}
-              aria-label="前の画面に戻る"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M14.5 5.5L8 12l6.5 6.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2.4"
-                />
-              </svg>
-            </button>
-
-            {titleModal === "create" ? (
-              <>
-                <p className="panel-kicker">Create Room</p>
-                <h2 id="title-modal-heading">ルームを作成</h2>
-
-                <div className="modal-stack">
-                  <div className="modal-card">
-                    <span>ホストプレイヤー名</span>
-                    <strong>{trimText(playerName)}</strong>
-                  </div>
-
-                  <div className="modal-card">
-                    <span>ルームID</span>
-                    <div className="modal-room-id">
-                      <strong>{pendingRoomDraft?.room.id ?? ""}</strong>
-                      <button
-                        type="button"
-                        className="copy-button"
-                        onClick={() =>
-                          void copyText(
-                            pendingRoomDraft?.room.id ?? "",
-                            "ルームIDをコピーしました。",
-                          )
-                        }
-                        disabled={isBusy || !pendingRoomDraft}
-                      >
-                        コピー
-                      </button>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => void handleConfirmCreateRoom()}
-                    disabled={isBusy || !pendingRoomDraft}
-                  >
-                    作成
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="panel-kicker">Join Room</p>
-                <h2 id="title-modal-heading">ルームに参加</h2>
-                <form className="modal-stack" onSubmit={handleJoinRoom}>
-                  <label className="field modal-field">
-                    <span>ルームID</span>
-                    <input
-                      value={roomIdInput}
-                      onChange={(event) => setRoomIdInput(event.target.value)}
-                      placeholder="共有されたルームID"
-                    />
-                  </label>
-
-                  <button type="submit" className="primary-button" disabled={isBusy}>
-                    参加
-                  </button>
-                </form>
-              </>
-            )}
-          </section>
-        </div>
-      ) : null}
-    </main>
-  );
-
-  const renderRoomScreen = () => (
-    <main className="screen room-screen">
-      <section className="room-hero">
-        <div>
-          <p className="panel-kicker">Room Lobby</p>
-          <h2>ルーム待機画面</h2>
-        </div>
-        <div className="room-id-card">
-          <span>ROOM ID</span>
-          <div className="room-id-row">
-            <strong>{room?.id}</strong>
-            <button
-              type="button"
-              className="copy-button"
-              onClick={handleCopyRoomId}
-              disabled={isBusy}
-            >
-              コピー
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="room-layout">
-        <article className="panel">
-          <div className="panel-header-row">
-            <h3>プレイヤー</h3>
-            <span className="status-badge">{getPhaseLabel(currentPhase)}</span>
-          </div>
-          <div className="player-list">
-            {room?.players.map((player) => {
-              const isCurrent = player.id === playerId;
-              const hasCard = player.card !== null;
-
-              return (
-                <div key={player.id} className={`player-row ${isCurrent ? "current" : ""}`}>
-                  <div>
-                    <strong>
-                      {player.name}
-                      {player.id === room.hostPlayerId ? " / HOST" : ""}
-                    </strong>
-                    <p>
-                      {player.isReadyForStart
-                        ? "準備完了"
-                        : hasCard
-                          ? "FREE マス待ち"
-                          : "カード未配布"}
-                    </p>
-                  </div>
-                  <span className={`mini-badge ${player.isReadyForStart ? "ready" : ""}`}>
-                    {player.isReadyForStart ? "READY" : "WAIT"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </article>
-
-        <aside className="panel action-panel">
-          <h3>準備</h3>
-
-          {currentPlayer && !currentPlayer.isReadyForStart ? (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={handlePrepare}
-              disabled={isBusy || currentPhase !== "waiting_for_ready"}
-            >
-              準備OK
-            </button>
-          ) : (
-            <div className="info-card success">準備完了</div>
-          )}
-
-          {isHost ? (
-            <button
-              type="button"
-              className="primary-button accent-button"
-              onClick={handleStartSession}
-              disabled={isBusy || !canStart}
-            >
-              セッションを開始
-            </button>
-          ) : (
-            <div className="info-card">ホストの開始を待機中です。</div>
-          )}
-
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={handleReturnToTitle}
-            disabled={isBusy}
-          >
-            タイトルに戻る
-          </button>
-        </aside>
-      </section>
-    </main>
-  );
-
-  const renderGameScreen = () => (
-    <main className="screen game-screen">
-      <section className="game-topbar">
-        <div>
-          <p className="panel-kicker">Game Session</p>
-          <h2>Round {room?.currentSession.round}</h2>
-        </div>
-        <div className="session-stats">
-          <div>
-            <span>現在の番号</span>
-            <strong>{room?.currentSession.currentDrawnNumber ?? "-"}</strong>
-          </div>
-          <div>
-            <span>フェーズ</span>
-            <strong>{getPhaseLabel(currentPhase)}</strong>
-          </div>
-          <div hidden>
-            {/* 現在は UI 上で使っていないため非表示のまま保持しています。 */}
-            <span>同期</span>
-            <strong>{syncStatus}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="game-layout">
-        <article className="panel board-panel">
-          <div className="panel-header-row">
-            <h3>{currentPlayer?.name ?? "Player"} のカード</h3>
-            <span className="status-badge">
-              Bingo {currentPlayer?.bingoCount ?? 0} / Reach {currentPlayer?.reachCount ?? 0}
-            </span>
-          </div>
-          {renderCard(currentPlayer?.card ?? null, { interactive: canAct })}
-          <div className="action-strip">
-            {canAct ? (
-              matchingCell ? (
-                <p>光っているマスを押して、このラウンドのアクションを完了します。</p>
-              ) : (
-                <>
-                  <p>今回の番号はあなたのカードにありません。完了ボタンでラウンドを進めます。</p>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={handleAct}
-                    disabled={isBusy}
-                  >
-                    該当なしで完了
-                  </button>
-                </>
-              )
-            ) : (
-              <p>
-                {currentPlayer?.hasActedThisRound
-                  ? "このラウンドの操作は完了しています。"
-                  : "現在はあなたの操作ターンではありません。"}
-              </p>
-            )}
-          </div>
-        </article>
-
-        <aside className="game-side">
-          <section className="panel">
-            <h3>参加プレイヤー</h3>
-            <div className="player-list compact">
-              {room?.players.map((player) => (
-                <div key={player.id} className="player-row">
-                  <div>
-                    <strong>{player.name}</strong>
-                    <p>{player.id === room.hostPlayerId ? "HOST" : "PLAYER"}</p>
-                  </div>
-                  <span className={`mini-badge ${player.hasActedThisRound ? "ready" : ""}`}>
-                    {player.hasActedThisRound ? "DONE" : "TURN"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel">
-            <h3>抽選履歴</h3>
-            <div className="draw-history">
-              {room?.currentSession.drawnNumbers.map((value) => (
-                <span key={value} className="draw-chip">
-                  {value}
-                </span>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel">
-            <h3>進行操作</h3>
-            {isHost ? (
-              <button
-                type="button"
-                className="primary-button accent-button"
-                onClick={handleNextRound}
-                disabled={
-                  isBusy ||
-                  room?.currentSession.phase !== "waiting_for_host_next_round"
-                }
-              >
-                次のラウンドへ
-              </button>
-            ) : (
-              <p className="panel-copy">
-                全員のアクションが終わると、ホストが次のラウンドを開始します。
-              </p>
-            )}
-          </section>
-        </aside>
-      </section>
-    </main>
-  );
-
-  const renderResultScreen = () => (
-    <main className="screen result-screen">
-      <section className="result-header">
-        <h2>{resultHeadline}</h2>
-      </section>
-
-      <section className="winner-stack">
-        {winners.map((winner) => {
-          const highlightedPositions = getHighlightedCellSet(winner.card);
-
-          return (
-            <article key={winner.id} className="panel winner-panel">
-              <div className="panel-header-row">
-                <h3>{winner.name}</h3>
-                <span className="status-badge champion">WINNER</span>
-              </div>
-              {renderCard(winner.card, { highlightedPositions })}
-            </article>
-          );
-        })}
-      </section>
-
-      <div className="result-actions">
-        <button
-          type="button"
-          className="primary-button"
-          onClick={handleReturnToTitle}
-        >
-          ゲームを終了
-        </button>
-      </div>
-    </main>
-  );
 
   return (
     <div className="app-shell">
@@ -1156,10 +571,66 @@ const App = () => {
 
       {isBootstrapping && <div className="boot-message">保存済みルームを確認しています...</div>}
 
-      {!isBootstrapping && screen === "title" && renderTitleScreen()}
-      {!isBootstrapping && screen === "room" && renderRoomScreen()}
-      {!isBootstrapping && screen === "game" && renderGameScreen()}
-      {!isBootstrapping && screen === "result" && renderResultScreen()}
+      {!isBootstrapping && screen === "title" && (
+        <TitleScreen
+          playerName={playerName}
+          roomIdInput={roomIdInput}
+          titleModal={titleModal}
+          pendingRoomDraft={pendingRoomDraft}
+          isBusy={isBusy}
+          isBootstrapping={isBootstrapping}
+          onPlayerNameChange={setPlayerName}
+          onRoomIdInputChange={setRoomIdInput}
+          onOpenCreateModal={() => void handleOpenCreateModal()}
+          onOpenJoinModal={handleOpenJoinModal}
+          onCancelCreateModal={() => void handleCancelCreateModal()}
+          onCloseJoinModal={handleCloseJoinModal}
+          onConfirmCreateRoom={() => void handleConfirmCreateRoom()}
+          onJoinRoom={handleJoinRoom}
+          onCopyDraftRoomId={() => void handleCopyDraftRoomId()}
+        />
+      )}
+
+      {!isBootstrapping && screen === "room" && (
+        <RoomScreen
+          room={room}
+          playerId={playerId}
+          currentPlayer={currentPlayer}
+          currentPhase={currentPhase}
+          isHost={isHost}
+          canStart={canStart}
+          isBusy={isBusy}
+          onCopyRoomId={() => void handleCopyRoomId()}
+          onPrepare={() => void handlePrepare()}
+          onStartSession={() => void handleStartSession()}
+          onReturnToTitle={handleReturnToTitle}
+        />
+      )}
+
+      {!isBootstrapping && screen === "game" && (
+        <GameScreen
+          room={room}
+          currentPlayer={currentPlayer}
+          currentPhase={currentPhase}
+          syncStatus={syncStatus}
+          isHost={isHost}
+          isBusy={isBusy}
+          canAct={canAct}
+          matchingPositionId={matchingCell?.positionId ?? null}
+          onAct={() => void handleAct()}
+          onNextRound={() => void handleNextRound()}
+        />
+      )}
+
+      {!isBootstrapping && screen === "result" && (
+        <ResultScreen
+          resultHeadline={resultHeadline}
+          winners={winners}
+          getHighlightedPositions={(player) => getHighlightedCellSet(player.card)}
+          onReturnToTitle={handleReturnToTitle}
+          isBusy={isBusy}
+        />
+      )}
     </div>
   );
 };

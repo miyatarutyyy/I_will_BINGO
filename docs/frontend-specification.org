@@ -1,0 +1,329 @@
+* frontend/ 仕様書
+
+この文書は、=/frontend= 配下の現在の実装を基準にした仕様書です。
+理想仕様ではなく、=2026-03-27= 時点で実際に動作しているフロントエンドの挙動をまとめています。
+
+今後 frontend の仕様変更が発生した場合は、このファイルを更新し、下記の更新履歴に「いつ」「何を変更したか」を追記して管理します。
+
+* 更新履歴
+
+| 日付       | 更新内容 |
+|------------+----------|
+| 2026-03-27 | 初版作成。=frontend/= の現行実装をもとに画面仕様、状態管理、API 連携、コンポーネント構成を整理した。 |
+
+* 1. 目的と役割
+
+このフロントエンドは、オンラインビンゴゲームのプレイヤー向け UI を担当します。
+現時点で担当している責務は次の通りです。
+
+- プレイヤー名入力
+- ルーム作成導線
+- ルーム参加導線
+- ルーム待機画面の表示
+- ゲームセッション画面の表示と操作
+- リザルト画面の表示
+- ルーム状態の復元
+- SSE によるルーム状態のリアルタイム反映
+- 通知メッセージのトースト表示
+
+* 2. 技術構成
+
+** 2.1 採用技術
+
+- 実装言語は TypeScript
+- UI ライブラリは React
+- ビルドツールは Vite
+- lint は ESLint
+
+参照:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/package.json][frontend/package.json]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/main.tsx][frontend/src/main.tsx]]
+
+** 2.2 スタイル構成
+
+- 画面全体のスタイルは [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/App.css][frontend/src/App.css]]
+- ベーススタイルは [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/index.css][frontend/src/index.css]]
+- 各画面コンポーネントは CSS クラスを共有して使用
+
+* 3. コンポーネント構成
+
+現在の主要な構成は次の通りです。
+
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/App.tsx][frontend/src/App.tsx]]
+  - 画面全体の状態管理
+  - API 呼び出し
+  - SSE 接続管理
+  - 画面切り替え
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/TitleScreen.tsx][frontend/src/components/TitleScreen.tsx]]
+  - タイトル画面
+  - ルーム作成/参加モーダル
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/RoomScreen.tsx][frontend/src/components/RoomScreen.tsx]]
+  - ルーム待機画面
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/GameScreen.tsx][frontend/src/components/GameScreen.tsx]]
+  - ゲームセッション画面
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/ResultScreen.tsx][frontend/src/components/ResultScreen.tsx]]
+  - リザルト画面
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/BingoCardView.tsx][frontend/src/components/BingoCardView.tsx]]
+  - ビンゴカード描画
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/types/game.ts][frontend/src/types/game.ts]]
+  - 共有型定義
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/lib/game.ts][frontend/src/lib/game.ts]]
+  - 純粋関数と画面判定ロジック
+
+* 4. 画面仕様
+
+** 4.1 タイトル画面
+
+表示要素:
+
+- ゲームタイトル =I Will BINGO=
+- =playerName= 入力欄
+- =ルームを作成= ボタン
+- =ルームに参加= ボタン
+
+*** 4.1.1 ルーム作成導線
+
+=ルームを作成= 押下時の挙動:
+
+- =playerName= が空ならエラートーストを表示
+- 空でなければ =POST /rooms= を実行
+- ルーム作成成功後、即座には待機画面へ遷移せず作成モーダルを表示
+
+作成モーダルの表示要素:
+
+- ホストプレイヤー名
+- ルーム ID
+- コピー按钮
+- 作成按钮
+- 戻るアイコン
+
+モーダル内の挙動:
+
+- =コピー= でルーム ID をクリップボードへコピー
+- =作成= でルーム待機画面へ遷移
+- 戻るアイコンで =DELETE /rooms/:roomId= を実行し、仮作成ルームを破棄
+
+*** 4.1.2 ルーム参加導線
+
+=ルームに参加= 押下時の挙動:
+
+- =playerName= が空ならエラートーストを表示
+- 空でなければ参加モーダルを表示
+
+参加モーダルの表示要素:
+
+- ルーム ID 入力欄
+- 参加按钮
+- 戻るアイコン
+
+モーダル内の挙動:
+
+- =参加= で =POST /rooms/:roomId/join= を実行
+- 参加成功時はルーム待機画面へ遷移
+- 戻るアイコンでタイトル画面に戻る
+
+** 4.2 ルーム待機画面
+
+表示要素:
+
+- ルーム ID
+- コピー按钮
+- 待機中プレイヤー一覧
+- =準備OK= 按钮
+- ホストのみ =セッションを開始= 按钮
+- =タイトルに戻る= 按钮
+
+プレイヤー一覧では次を表示します。
+
+- プレイヤー名
+- ホストの場合は =/ HOST= 表示
+- 状態テキスト
+  - =準備完了=
+  - =FREE マス待ち=
+  - =カード未配布=
+- READY / WAIT バッジ
+
+待機画面の操作仕様:
+
+- まだ ready 前のプレイヤーは =準備OK= を押せる
+- この操作は内部的にカード作成と ready 送信を行う
+- 全員が ready 後、ホストのみセッション開始可能
+
+** 4.3 ゲームセッション画面
+
+表示要素:
+
+- 現在ラウンド数
+- 現在の抽選番号
+- フェーズ表示
+- 自分のビンゴカード
+- Bingo / Reach カウンタ
+- アクション案内
+- 参加プレイヤー一覧
+- 抽選履歴
+- ホスト用の次ラウンド按钮
+
+同期表示について:
+
+- =syncStatus= 自体は状態として保持
+- UI 上の同期項目は現在 =hidden= で非表示
+- コード上には「現在は UI 上で使っていないため非表示のまま保持している」旨のコメントを残している
+
+プレイヤーの操作仕様:
+
+- 抽選番号がカード上にある場合は対象マスが強調表示され、そのマスを押す
+- 抽選番号がカード上にない場合は =該当なしで完了= を押す
+- 各プレイヤーは 1 ラウンドにつき 1 回だけ操作できる
+
+ホストの操作仕様:
+
+- 全員の act 完了後のみ =次のラウンドへ= を押せる
+
+** 4.4 リザルト画面
+
+表示要素:
+
+- 画面中央の見出し =（プレイヤー名）の優勝!=
+- 勝者カード一覧
+- =ゲームを終了= 按钮
+
+補足:
+
+- 従来の「セッション終了」見出しは廃止
+- ビンゴライン文字列表示は廃止
+- 見出しは上下左右中央に配置
+
+* 5. 状態管理
+
+** 5.1 主要 state
+
+=App.tsx= では主に次を管理しています。
+
+- =playerName=
+- =roomIdInput=
+- =playerId=
+- =room=
+- =screen=
+- =titleModal=
+- =pendingRoomDraft=
+- =isBusy=
+- =isBootstrapping=
+- =notice=
+- =noticeTone=
+- =syncStatus=
+
+** 5.2 画面判定
+
+=room= の状態から現在画面を判定します。
+
+- =room === null= の場合は =title=
+- =room.currentSession.status === "waiting"= の場合は =room=
+- =room.currentSession.status === "in_progress"= の場合は =game=
+- =room.currentSession.status === "finished"= の場合は =result=
+
+参照:
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/lib/game.ts][frontend/src/lib/game.ts]]
+
+* 6. ストレージ仕様
+
+ブラウザの =sessionStorage= を利用して次の値を保持します。
+
+- =iwillbingo:playerName=
+- =iwillbingo:roomId=
+- =iwillbingo:playerId=
+
+用途:
+
+- 画面再読込時のプレイヤー名保持
+- ルーム復元
+
+起動時に =roomId= と =playerId= が両方ある場合は =GET /rooms/:roomId= を呼び、ルーム復元を試みます。
+
+* 7. 通知仕様
+
+通知は画面上部の常設バナーではなく、右上固定のトーストで表示します。
+
+仕様:
+
+- =notice= が空でないときだけ表示
+- 成功 / エラー / 通常の tone を持つ
+- 表示後 2 秒で自動消去
+
+bootstrapping 中の =保存済みルームを確認しています...= はトーストではなく別表示です。
+
+* 8. API 連携
+
+** 8.1 API ベース URL
+
+=VITE_API_BASE_URL= を優先し、未指定時は =http://localhost:3000= を利用します。
+
+** 8.2 使用している API
+
+- =POST /rooms=
+  - ルーム作成
+- =DELETE /rooms/:roomId=
+  - 仮作成ルーム破棄
+- =POST /rooms/:roomId/join=
+  - ルーム参加
+- =GET /rooms/:roomId=
+  - 保存済みルーム復元
+- =GET /rooms/:roomId/events=
+  - SSE 購読
+- =POST /rooms/:roomId/session/setup=
+  - カード作成
+- =POST /rooms/:roomId/session/ready=
+  - ready 送信
+- =POST /rooms/:roomId/session/start=
+  - ゲーム開始
+- =POST /rooms/:roomId/session/act=
+  - ラウンド行動
+- =POST /rooms/:roomId/session/next-round=
+  - 次ラウンド開始
+
+* 9. SSE 仕様
+
+ルームに入室後、=GET /rooms/:roomId/events= に対して =EventSource= を接続します。
+
+現在の扱い:
+
+- =room_updated= イベントを購読
+- 受信した =payload.room= でフロント状態を更新
+- 接続開始時は =connecting=
+- 接続済みで =live=
+- エラー時は =reconnecting=
+
+ただし、前述の通り =syncStatus= の表示自体は UI 上では非表示です。
+
+* 10. ビンゴカード表示仕様
+
+カード表示コンポーネントは [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/BingoCardView.tsx][frontend/src/components/BingoCardView.tsx]] に集約しています。
+
+対応している表示状態:
+
+- 通常セル
+- 開封済みセル
+- FREE セル
+- 現在操作対象セル
+- 勝利ラインに含まれるセル
+
+カードが未配布なら =カードはまだ配布されていません。= を表示します。
+
+* 11. 既知の実装上の前提
+
+- 認証は未実装
+- 永続化は未実装
+- ルームやプレイヤーの権限確認は backend 側の =playerId= 依存
+- frontend は backend の現在仕様に合わせて、ready 前にカード作成を内包している
+- タイトル画面の作成モーダルでは、一度ルームを仮作成してから確認させる
+
+* 12. 参照ファイル
+
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/App.tsx][frontend/src/App.tsx]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/TitleScreen.tsx][frontend/src/components/TitleScreen.tsx]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/RoomScreen.tsx][frontend/src/components/RoomScreen.tsx]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/GameScreen.tsx][frontend/src/components/GameScreen.tsx]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/ResultScreen.tsx][frontend/src/components/ResultScreen.tsx]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/BingoCardView.tsx][frontend/src/components/BingoCardView.tsx]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/lib/game.ts][frontend/src/lib/game.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/types/game.ts][frontend/src/types/game.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/App.css][frontend/src/App.css]]
