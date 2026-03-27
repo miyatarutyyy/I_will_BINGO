@@ -680,10 +680,6 @@ const App = () => {
 
   return (
     <div className="app-shell">
-      <div className="background-orb orb-a" />
-      <div className="background-orb orb-b" />
-      <div className="background-orb orb-c" />
-
       {shouldShowNotice ? (
         <div className={`notice-banner is-visible ${noticeTone}`}>{notice}</div>
       ) : null}
