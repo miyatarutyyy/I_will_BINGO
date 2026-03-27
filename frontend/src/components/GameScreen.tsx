@@ -35,7 +35,8 @@ export const GameScreen = ({
   const bingoCount = currentPlayer?.bingoCount ?? 0;
   const reachCount = currentPlayer?.reachCount ?? 0;
   const [activeDrawKey, setActiveDrawKey] = useState("");
-  const [isDrawRevealOpen, setIsDrawRevealOpen] = useState(false);
+  const [isDrawRevealActive, setIsDrawRevealActive] = useState(false);
+  const [isDrawAnimating, setIsDrawAnimating] = useState(false);
   const lastPresentedDrawKeyRef = useRef("");
   const scoreBadgeClassName =
     bingoCount > 0
@@ -44,6 +45,7 @@ export const GameScreen = ({
         ? "status-badge reach"
         : "status-badge neutral";
   const currentDrawnNumber = room?.currentSession.currentDrawnNumber ?? null;
+  const canActNow = canAct && !isDrawAnimating;
   const drawPresentationKey =
     room?.currentSession.status === "in_progress" && currentDrawnNumber !== null
       ? `${room.currentSession.id}:${room.currentSession.round}:${currentDrawnNumber}`
@@ -51,7 +53,8 @@ export const GameScreen = ({
 
   useEffect(() => {
     if (drawPresentationKey === "") {
-      setIsDrawRevealOpen(false);
+      setIsDrawRevealActive(false);
+      setIsDrawAnimating(false);
       return;
     }
 
@@ -59,11 +62,19 @@ export const GameScreen = ({
 
     lastPresentedDrawKeyRef.current = drawPresentationKey;
     setActiveDrawKey(drawPresentationKey);
-    setIsDrawRevealOpen(true);
+    setIsDrawRevealActive(true);
   }, [drawPresentationKey]);
 
   const renderProgressButton = () => {
-    if (canAct) {
+    if (isDrawAnimating) {
+      return (
+        <button type="button" className="secondary-button" disabled>
+          抽選中
+        </button>
+      );
+    }
+
+    if (canActNow) {
       if (hasMatchingCell) {
         return (
           <button type="button" className="secondary-button" disabled>
@@ -114,19 +125,14 @@ export const GameScreen = ({
 
   return (
     <main className="screen game-screen">
-      <DrawRevealModal
-        animationKey={activeDrawKey}
-        isOpen={isDrawRevealOpen}
-        round={room?.currentSession.round ?? 0}
-        targetNumber={currentDrawnNumber}
-        onComplete={() => {
-          setIsDrawRevealOpen(false);
-        }}
-      />
-
       <section className="game-topbar">
         <div className="current-number-card">
-          <strong>{currentDrawnNumber ?? "-"}</strong>
+          <DrawRevealModal
+            animationKey={activeDrawKey}
+            isOpen={isDrawRevealActive}
+            targetNumber={currentDrawnNumber}
+            onAnimationStateChange={setIsDrawAnimating}
+          />
         </div>
       </section>
 
@@ -145,9 +151,9 @@ export const GameScreen = ({
           </div>
           <BingoCardView
             card={currentPlayer?.card ?? null}
-            interactive={canAct}
+            interactive={canActNow}
             matchingPositionId={matchingPositionId}
-            isBusy={isBusy}
+            isBusy={isBusy || isDrawAnimating}
             onAct={onAct}
           />
           {

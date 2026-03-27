@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 const MAX_BINGO_NUMBER = 75;
 const FAST_SPIN_STEPS = 16;
@@ -42,29 +42,30 @@ const getStepDelay = (stepIndex: number) => {
 type DrawRevealModalProps = {
   animationKey: string;
   isOpen: boolean;
-  round: number;
   targetNumber: number | null;
-  onComplete: () => void;
+  onAnimationStateChange?: (isAnimating: boolean) => void;
 };
 
 export const DrawRevealModal = ({
   animationKey,
   isOpen,
-  round,
   targetNumber,
-  onComplete,
+  onAnimationStateChange,
 }: DrawRevealModalProps) => {
   const [sequence, setSequence] = useState<number[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isSettled, setIsSettled] = useState(false);
-  const onCompleteRef = useRef(onComplete);
 
   useEffect(() => {
-    onCompleteRef.current = onComplete;
-  }, [onComplete]);
+    if (targetNumber === null) return;
 
-  useEffect(() => {
-    if (!isOpen || targetNumber === null) return;
+    if (!isOpen) {
+      setSequence([targetNumber]);
+      setCurrentIndex(0);
+      setIsSettled(true);
+      onAnimationStateChange?.(false);
+      return;
+    }
 
     const nextSequence = buildSpinSequence(targetNumber);
     const timeoutIds: number[] = [];
@@ -72,25 +73,24 @@ export const DrawRevealModal = ({
     setSequence(nextSequence);
     setCurrentIndex(0);
     setIsSettled(false);
+    onAnimationStateChange?.(true);
 
     let elapsed = 0;
 
     for (let stepIndex = 1; stepIndex < nextSequence.length; stepIndex += 1) {
       elapsed += getStepDelay(stepIndex);
-      timeoutIds.push(window.setTimeout(() => {
-        setCurrentIndex(stepIndex);
-      }, elapsed));
+      timeoutIds.push(
+        window.setTimeout(() => {
+          setCurrentIndex(stepIndex);
+        }, elapsed),
+      );
     }
 
     timeoutIds.push(
       window.setTimeout(() => {
         setIsSettled(true);
+        onAnimationStateChange?.(false);
       }, elapsed + 80),
-    );
-    timeoutIds.push(
-      window.setTimeout(() => {
-        onCompleteRef.current();
-      }, elapsed + 780),
     );
 
     return () => {
@@ -98,48 +98,39 @@ export const DrawRevealModal = ({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [animationKey, isOpen, targetNumber]);
+  }, [animationKey, isOpen, onAnimationStateChange, targetNumber]);
 
   if (!isOpen || targetNumber === null) return null;
 
   const reelValues = sequence.length > 0 ? sequence : [targetNumber];
 
   return (
-    <div className="draw-reveal-overlay" role="presentation">
-      <section
-        className={`draw-reveal-modal ${isSettled ? "is-settled" : ""}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="draw-reveal-heading"
-      >
-        <p id="draw-reveal-heading" className="draw-reveal-round">
-          Round {round}
-        </p>
-
-        <div className="draw-reel-shell" aria-live="polite" aria-atomic="true">
-          <div className="draw-reel-fade draw-reel-fade-top" />
-          <div className="draw-reel-fade draw-reel-fade-bottom" />
-          <div className="draw-reel-window">
+    <div
+      className={`draw-reel-shell ${isSettled ? "is-settled" : ""}`}
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <div className="draw-reel-fade draw-reel-fade-top" />
+      <div className="draw-reel-fade draw-reel-fade-bottom" />
+      <div className="draw-reel-window">
+        <div
+          className="draw-reel-track"
+          style={{
+            transform: `translateY(calc(-${currentIndex} * var(--draw-slot-height)))`,
+          }}
+        >
+          {reelValues.map((value, index) => (
             <div
-              className="draw-reel-track"
-              style={{
-                transform: `translateY(calc(-${currentIndex} * var(--draw-slot-height)))`,
-              }}
+              key={`${animationKey}-${index}-${value}`}
+              className={`draw-reel-value ${
+                index === currentIndex ? "is-active" : ""
+              }`}
             >
-              {reelValues.map((value, index) => (
-                <div
-                  key={`${animationKey}-${index}-${value}`}
-                  className={`draw-reel-value ${
-                    index === currentIndex ? "is-active" : ""
-                  }`}
-                >
-                  {value}
-                </div>
-              ))}
+              {value}
             </div>
-          </div>
+          ))}
         </div>
-      </section>
+      </div>
     </div>
   );
 };
