@@ -13,7 +13,7 @@
 | 2026-03-27 | ルーム退室フローを反映。待機画面の =タイトルに戻る= を =ルームを退室する= に変更し、ホスト/非ホスト別の確認モーダル、=POST /rooms/:roomId/leave= 利用、=room_closed= SSE 受信時のタイトル復帰仕様を追記した。 |
 | 2026-03-27 | タイトル画面とゲーム画面の最新 UI を反映。タイトル文言と中央配置、ゲーム画面の進行ボタン分岐、Bingo / Reach バッジ色分岐、非表示化された要素を仕様へ反映した。 |
 | 2026-03-27 | ゲーム画面上部の表示を更新。ラウンド番号見出しを廃止して抽選番号のみを中央表示する仕様に変更し、成功通知は =ルームIDをコピーしました。= の場合のみ表示する条件を追記した。 |
-| 2026-03-28 | ゲーム画面の抽選演出を更新。各ラウンド開始時に抽選モーダルを重ね、約 2 秒間の縦スクロール演出の後でサーバー確定済みの番号へ収束する =DrawRevealModal= を追加した。 |
+| 2026-03-28 | ゲーム画面の抽選演出を更新。=current-number-card= 内で縦スクロール演出を行うインライン抽選 UI に変更し、=draw-reel-shell= のみを表示する構成、アニメーション中の操作禁止、進行ボタンの =抽選中= 表示を反映した。 |
 
 * 1. 目的と役割
 
@@ -66,7 +66,7 @@
 - [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/GameScreen.tsx][frontend/src/components/GameScreen.tsx]]
   - ゲームセッション画面
 - [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/DrawRevealModal.tsx][frontend/src/components/DrawRevealModal.tsx]]
-  - ラウンド開始時の抽選演出モーダル
+  - current-number-card 内の抽選演出コンポーネント
 - [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/ResultScreen.tsx][frontend/src/components/ResultScreen.tsx]]
   - リザルト画面
 - [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/components/BingoCardView.tsx][frontend/src/components/BingoCardView.tsx]]
@@ -169,18 +169,19 @@
 表示要素:
 
 - 画面上部中央の現在の抽選番号
-- 各ラウンド開始時に重なる抽選モーダル
+- 画面上部の =current-number-card= 内で表示する抽選アニメーション
 - 自分のビンゴカード
 - Bingo / Reach カウンタ
 - 進行状態に応じて切り替わる下部ボタン
 
-抽選モーダルの仕様:
+抽選アニメーションの仕様:
 
-- セッション進行中に =session.id + round + currentDrawnNumber= の組み合わせが新しくなったとき表示する
-- モーダル内に表示する情報は =Round N= と縦スクロールする数字のみ
+- セッション進行中に =session.id + round + currentDrawnNumber= の組み合わせが新しくなったとき、=current-number-card= 内で開始する
+- 表示する UI は =draw-reel-shell= のみ
 - 数字は 1 から 75 の範囲で高速に切り替わり、終盤で減速してサーバーから受信済みの =currentDrawnNumber= に収束する
-- 演出時間はおおむね 2 秒台前半で、その後モーダルを自動で閉じる
+- 演出時間はおおむね 2 秒台前半
 - 確定番号自体は演出前から state に保持されており、演出は表示上のリールアニメーションのみを担当する
+- 配色は灰色ベースで、アクティブな数字は濃いグレーで表示する
 
 同期表示について:
 
@@ -198,6 +199,8 @@
 
 プレイヤーの操作仕様:
 
+- 抽選アニメーション中は全プレイヤー共通でカード操作と =スキップする= を禁止する
+- 抽選アニメーション中の進行ボタン領域は、全プレイヤー共通で灰色の =抽選中= ボタン表示に切り替える
 - 抽選番号がカード上にある場合は対象マスが強調表示され、そのマスを押す
 - このとき下部には灰色の =番号のマスを開いてください= ボタンを表示する
 - 抽選番号がカード上にない場合は赤色の =スキップする= ボタンを押す
