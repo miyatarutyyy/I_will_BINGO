@@ -104,8 +104,15 @@ export const TitleScreen = ({
 
             {titleModal === "create" ? (
               <>
-                <p className="panel-kicker">Create Room</p>
-                <h2 id="title-modal-heading">ルームを作成</h2>
+                <h2
+                  id="title-modal-heading"
+                  style={{
+                    textAlign: "center",
+                    marginBottom: "5px",
+                  }}
+                >
+                  ルームを作成
+                </h2>
 
                 <div className="modal-stack">
                   <div className="modal-card">
@@ -140,17 +147,23 @@ export const TitleScreen = ({
               </>
             ) : (
               <>
-                <p className="panel-kicker">Join Room</p>
-                <h2 id="title-modal-heading">ルームに参加</h2>
+                <h2
+                  id="title-modal-heading"
+                  style={{
+                    textAlign: "center",
+                    marginBottom: "5px",
+                  }}
+                >
+                  ルームに参加
+                </h2>
                 <form className="modal-stack" onSubmit={onJoinRoom}>
                   <label className="field modal-field">
-                    <span>ルームID</span>
                     <input
                       value={roomIdInput}
                       onChange={(event) =>
                         onRoomIdInputChange(event.target.value)
                       }
-                      placeholder="共有されたルームID"
+                      placeholder="共有されたルームIDを入力"
                     />
                   </label>
 

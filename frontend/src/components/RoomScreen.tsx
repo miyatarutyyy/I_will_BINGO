@@ -39,14 +39,14 @@ export const RoomScreen = ({
   return (
     <main className="screen room-screen">
       <section className="room-hero">
-        <div style={{ display: "flex" }}>
+        <div>
           <h2>ルーム待機画面</h2>
           {
             //<p className="panel-kicker">Room Lobby</p>
           }
         </div>
         <div className="room-id-card">
-          <span>ROOM ID</span>
+          <span>ルームIDを他のプレイヤーに共有してください</span>
           <div className="room-id-row">
             <strong>{room?.id}</strong>
             <button

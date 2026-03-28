@@ -137,7 +137,7 @@ export const GameScreen = ({
       </section>
 
       <section className="game-layout">
-        <article className="panel board-panel">
+        <article className="panel board-panel" style={{ borderRadius: "0px" }}>
           <div className="panel-header-row">
             {
               // <h3>{currentPlayer?.name ?? "Player"} のカード</h3>
