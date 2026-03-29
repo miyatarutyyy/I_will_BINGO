@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 
 import { BingoCardView } from "./BingoCardView";
 import { DrawRevealModal } from "./DrawRevealModal";
@@ -45,6 +46,16 @@ export const GameScreen = ({
         ? "status-badge reach"
         : "status-badge neutral";
   const currentDrawnNumber = room?.currentSession.currentDrawnNumber ?? null;
+  const eventGauge = room?.currentSession.eventGauge ?? 0;
+  const eventGaugeMax = room?.currentSession.eventGaugeMax ?? 0;
+  const eventGaugeProgress =
+    eventGaugeMax > 0
+      ? Math.min(100, Math.round((eventGauge / eventGaugeMax) * 100))
+      : 0;
+  const numberGaugeStyle = {
+    "--gauge-progress": `${eventGaugeProgress}%`,
+    "--gauge-progress-soft": `${eventGaugeProgress * 0.7}%`,
+  } as CSSProperties;
   const canActNow = canAct && !isDrawAnimating;
   const drawPresentationKey =
     room?.currentSession.status === "in_progress" && currentDrawnNumber !== null
@@ -127,12 +138,19 @@ export const GameScreen = ({
     <main className="screen game-screen">
       <section className="game-topbar">
         <div className="current-number-card">
-          <DrawRevealModal
-            animationKey={activeDrawKey}
-            isOpen={isDrawRevealActive}
-            targetNumber={currentDrawnNumber}
-            onAnimationStateChange={setIsDrawAnimating}
-          />
+          <div
+            className={`number-gauge-orb ${eventGauge <= 0 ? "is-empty" : ""}`}
+            style={numberGaugeStyle}
+          >
+            <div className="number-gauge-core">
+              <DrawRevealModal
+                animationKey={activeDrawKey}
+                isOpen={isDrawRevealActive}
+                targetNumber={currentDrawnNumber}
+                onAnimationStateChange={setIsDrawAnimating}
+              />
+            </div>
+          </div>
         </div>
       </section>
 

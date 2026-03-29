@@ -2,6 +2,7 @@ import request from "supertest";
 import { describe, expect, it } from "vitest";
 
 import app from "../app.js";
+import { getRoom } from "../store/room-store.js";
 
 const createRoom = async (name = "host") => {
   const response = await request(app).post("/rooms").send({ name });
@@ -101,6 +102,8 @@ describe.sequential("roomsRouter", () => {
     );
     expect(startResponse.body.room.currentSession.round).toBe(1);
     expect(startResponse.body.room.currentSession.drawnNumbers).toHaveLength(1);
+    expect(startResponse.body.room.currentSession.eventGauge).toBe(0);
+    expect(startResponse.body.room.currentSession.eventGaugeMax).toBe(60);
   });
 
   it("ホスト以外はセッションを開始できない", async () => {
@@ -244,6 +247,49 @@ describe.sequential("roomsRouter", () => {
     expect(players.every((player) => player.hasActedThisRound === false)).toBe(
       true,
     );
+  });
+
+  it("通常マスを新しく開いたときだけイベントゲージが加算される", async () => {
+    const { roomId, hostPlayerId } = await createRoom();
+    const { playerId: guestPlayerId } = await joinRoom(roomId);
+
+    await setupPlayer(roomId, hostPlayerId);
+    await setupPlayer(roomId, guestPlayerId);
+    await readyPlayer(roomId, hostPlayerId);
+    await readyPlayer(roomId, guestPlayerId);
+    await startSession(roomId, hostPlayerId);
+
+    const room = getRoom(roomId);
+    expect(room).not.toBeNull();
+
+    if (!room) return;
+
+    const hostState = room.currentSession.playerStates[hostPlayerId];
+    expect(hostState.card).not.toBeNull();
+
+    if (!hostState.card) return;
+
+    const closedNormalCell = hostState.card.cells.find((cell) => {
+      return !cell.isFree && !cell.isOpened && typeof cell.value === "number";
+    });
+
+    expect(closedNormalCell).toBeDefined();
+
+    if (!closedNormalCell || typeof closedNormalCell.value !== "number") return;
+
+    room.currentSession.currentDrawnNumber = closedNormalCell.value;
+
+    const firstActResponse = await actPlayer(roomId, hostPlayerId);
+
+    expect(firstActResponse.status).toBe(200);
+    expect(firstActResponse.body.room.currentSession.eventGauge).toBe(10);
+
+    room.currentSession.currentDrawnNumber = closedNormalCell.value;
+
+    const secondActResponse = await actPlayer(roomId, guestPlayerId);
+
+    expect(secondActResponse.status).toBe(200);
+    expect(secondActResponse.body.room.currentSession.eventGauge).toBe(10);
   });
 
   it("カード未作成のまま ready はできない", async () => {

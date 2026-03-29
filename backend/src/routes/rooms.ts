@@ -11,9 +11,11 @@ import { countBingoLines } from "../logic/bingo/judge.js";
 import { judgeSessionEnd } from "../logic/session/judge.js";
 import {
   areAllPlayersReady,
+  calculateEventGaugeMax,
   collectWinners,
   createPlayer,
   createPlayerSessionState,
+  EVENT_GAUGE_INCREMENT_PER_OPEN,
   createRoom,
   getPlayer,
   getPlayerState,
@@ -362,6 +364,9 @@ roomsRouter.post("/rooms/:roomId/session/start", (req, res) => {
   room.currentSession.round = 1;
   room.currentSession.currentDrawnNumber = result.drawnNumber;
   room.currentSession.drawnNumbers = result.nextState.drawnNumbers;
+  room.currentSession.eventGauge = 0;
+  room.currentSession.eventGaugeMax = calculateEventGaugeMax(room.players.length);
+  room.currentSession.eventTriggeredThisRound = false;
 
   room.players.forEach((player) => {
     room.currentSession.playerStates[player.id].hasActedThisRound = false;
@@ -422,8 +427,17 @@ roomsRouter.post("/rooms/:roomId/session/act", (req, res) => {
     });
   }
 
+  const matchedCell = playerState.card.cells.find((cell) => {
+    return cell.value === drawnNumber && !cell.isFree;
+  });
+  const shouldIncreaseEventGauge = Boolean(matchedCell && !matchedCell.isOpened);
+
   playerState.card = openCellByDrawnNumber(playerState.card, drawnNumber);
   playerState.hasActedThisRound = true;
+
+  if (shouldIncreaseEventGauge) {
+    room.currentSession.eventGauge += EVENT_GAUGE_INCREMENT_PER_OPEN;
+  }
 
   if (haveAllPlayersActed(room)) {
     const winners = collectWinners(room);
@@ -512,6 +526,7 @@ roomsRouter.post("/rooms/:roomId/session/next-round", (req, res) => {
   room.currentSession.currentDrawnNumber = result.drawnNumber;
   room.currentSession.drawnNumbers = result.nextState.drawnNumbers;
   room.currentSession.phase = "waiting_for_player_actions";
+  room.currentSession.eventTriggeredThisRound = false;
 
   room.players.forEach((player) => {
     room.currentSession.playerStates[player.id].hasActedThisRound = false;

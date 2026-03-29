@@ -7,6 +7,12 @@ import type {
   Room,
 } from "../types/session.js";
 
+export const EVENT_GAUGE_INCREMENT_PER_OPEN = 10;
+
+export const calculateEventGaugeMax = (playerCount: number): number => {
+  return playerCount * 30;
+};
+
 const createId = (prefix: string): string => {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 };
@@ -27,6 +33,9 @@ const createInitialSession = (players: Player[]): GameSession => {
     round: 0,
     currentDrawnNumber: null,
     drawnNumbers: [],
+    eventGauge: 0,
+    eventGaugeMax: 0,
+    eventTriggeredThisRound: false,
     endReason: null,
     winners: [],
     endCondition: createDefaultEndCondition(),

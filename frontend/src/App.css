@@ -34,7 +34,11 @@ input {
   overflow: hidden;
   padding: 28px 18px 56px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92)),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.92),
+      rgba(255, 255, 255, 0.92)
+    ),
     linear-gradient(180deg, #fafbfc 0%, #f3f5f7 100%);
 }
 
@@ -233,31 +237,40 @@ input {
   gap: 12px;
 }
 
+@property --gauge-progress {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --gauge-progress-soft {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
 .draw-reel-shell {
   position: relative;
   width: 100%;
-  padding: 10px;
-  border-radius: 22px;
-  border: 1px solid rgba(176, 190, 197, 0.32);
-  background: linear-gradient(
-    180deg,
-    rgba(236, 239, 241, 0.96),
-    rgba(250, 250, 250, 0.98)
-  );
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  height: 100%;
+  padding: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .draw-reel-window {
   --draw-slot-height: 72px;
+  width: 100%;
+  max-width: 180px;
   height: var(--draw-slot-height);
   overflow: hidden;
-  border-radius: 18px;
-  border: 1px solid rgba(176, 190, 197, 0.28);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.98),
-    rgba(245, 247, 248, 0.98)
-  );
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
 }
 
 .draw-reel-track {
@@ -294,21 +307,21 @@ input {
 
 .draw-reel-fade {
   position: absolute;
-  left: 10px;
-  right: 10px;
+  left: 16px;
+  right: 16px;
   height: 18px;
   z-index: 1;
   pointer-events: none;
 }
 
 .draw-reel-fade-top {
-  top: 10px;
-  background: linear-gradient(180deg, rgba(245, 247, 248, 0.96), transparent);
+  top: 16px;
+  background: transparent;
 }
 
 .draw-reel-fade-bottom {
-  bottom: 10px;
-  background: linear-gradient(0deg, rgba(245, 247, 248, 0.96), transparent);
+  bottom: 16px;
+  background: transparent;
 }
 
 .icon-button {
@@ -614,12 +627,81 @@ input {
 }
 
 .current-number-card {
-  min-width: 120px;
-  width: 70%;
+  width: min(100%, 420px);
   display: grid;
   place-items: center;
+  justify-items: center;
+  gap: 14px;
   text-align: center;
   font-weight: bold;
+}
+
+.number-gauge-orb {
+  --gauge-progress: 0%;
+  --gauge-progress-soft: 0%;
+  width: min(30vw, 320px);
+  aspect-ratio: 1;
+  padding: 10px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(
+    from 0deg,
+    #ef5350 0%,
+    #ffa726 var(--gauge-progress-soft),
+    #ffee58 var(--gauge-progress),
+    rgba(207, 216, 220, 0.58) var(--gauge-progress),
+    rgba(207, 216, 220, 0.58) 100%
+  );
+  box-shadow:
+    0 16px 38px rgba(38, 50, 56, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition:
+    --gauge-progress 220ms ease,
+    --gauge-progress-soft 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.number-gauge-orb.is-empty {
+  background: rgba(207, 216, 220, 0.58);
+}
+
+.number-gauge-core {
+  width: 100%;
+  height: 100%;
+  padding: 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f7f8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.current-number-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.current-number-meta-label {
+  color: #607d8b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.current-number-meta strong {
+  color: #263238;
+  font-size: 1.2rem;
+  letter-spacing: 0.04em;
+}
+
+.current-number-copy {
+  margin: 0;
+  color: #546e7a;
+  line-height: 1.6;
+  font-size: 0.92rem;
+  max-width: 34ch;
 }
 
 .session-stats strong {
@@ -775,5 +857,17 @@ input {
 
   .modal-room-id .copy-button {
     width: 100%;
+  }
+
+  .game-topbar {
+    justify-content: center;
+  }
+
+  .current-number-card {
+    width: 100%;
+  }
+
+  .number-gauge-orb {
+    width: min(30vw, 280px);
   }
 }

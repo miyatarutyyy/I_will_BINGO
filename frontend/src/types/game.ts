@@ -41,6 +41,9 @@ export type GameSession = {
   round: number;
   currentDrawnNumber: number | null;
   drawnNumbers: number[];
+  eventGauge: number;
+  eventGaugeMax: number;
+  eventTriggeredThisRound: boolean;
   endReason: SessionEndReason;
   winners: string[];
   endCondition: SessionEndCondition;
