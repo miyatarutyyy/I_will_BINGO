@@ -2,6 +2,7 @@
   color: #263238;
   font-family: "Avenir Next", "Hiragino Sans", "Yu Gothic", sans-serif;
   background: #f7f8fa;
+  --mobile-frame-width: 540px;
 }
 
 * {
@@ -30,9 +31,11 @@ input {
 
 .app-shell {
   position: relative;
-  min-height: 100vh;
+  height: 100dvh;
   overflow: hidden;
-  padding: 28px 18px 56px;
+  width: min(100%, var(--mobile-frame-width));
+  margin: 0 auto;
+  padding: 16px 18px 20px;
   background:
     linear-gradient(
       180deg,
@@ -56,7 +59,7 @@ input {
 .panel,
 .winner-panel,
 .result-header {
-  width: min(1180px, 100%);
+  width: 100%;
   margin-left: auto;
   margin-right: auto;
   border: 1px solid rgba(207, 216, 220, 0.9);
@@ -118,22 +121,39 @@ input {
 .game-screen,
 .result-screen {
   display: grid;
-  gap: 24px;
+  gap: 16px;
+  min-height: 0;
 }
 
 .title-screen {
-  min-height: calc(100vh - 112px);
+  height: 100%;
   place-items: center;
 }
 
+.room-screen,
+.game-screen,
+.result-screen {
+  height: 100%;
+  overflow: hidden;
+}
+
+.room-screen {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.game-screen,
+.result-screen {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .title-panel {
-  width: min(720px, 100%);
+  width: 100%;
   border-radius: 34px;
-  padding: 44px 28px;
+  padding: 36px 28px;
   display: grid;
   align-content: center;
   justify-items: center;
-  gap: 20px;
+  gap: 16px;
   text-align: center;
 }
 
@@ -169,7 +189,8 @@ input {
 .game-layout,
 .winner-stack {
   display: grid;
-  gap: 16px;
+  gap: 12px;
+  min-height: 0;
 }
 
 .field {
@@ -589,7 +610,7 @@ input {
 .game-topbar,
 .result-header {
   border-radius: 28px;
-  padding: 28px;
+  padding: 20px 22px;
 }
 
 .panel-copy {
@@ -657,15 +678,30 @@ input {
 
 .room-layout,
 .game-layout {
-  width: min(1180px, 100%);
+  width: 100%;
   margin: 0 auto;
-  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.85fr);
+  grid-template-columns: 1fr;
   align-items: start;
+  overflow: hidden;
+}
+
+.room-layout {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.game-layout,
+.result-screen {
+  min-height: 0;
+}
+
+.game-layout {
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .panel {
-  padding: 24px;
+  padding: 18px;
   border-radius: 28px;
+  min-height: 0;
 }
 
 .action-panel,
@@ -740,6 +776,9 @@ input {
 
 .player-list {
   gap: 0;
+  overflow: auto;
+  min-height: 0;
+  padding-right: 4px;
 }
 
 .player-list.compact .player-row:last-child,
@@ -784,7 +823,7 @@ input {
   display: grid;
   place-items: center;
   justify-items: center;
-  gap: 14px;
+  gap: 10px;
   text-align: center;
   font-weight: bold;
 }
@@ -801,7 +840,7 @@ input {
   --gauge-progress-soft: 0%;
   grid-column: 2;
   justify-self: center;
-  width: min(30vw, 320px);
+  width: min(30vw, 240px);
   aspect-ratio: 1;
   padding: 10px;
   border-radius: 999px;
@@ -986,18 +1025,21 @@ input {
 
 .board-panel {
   display: grid;
-  gap: 18px;
+  gap: 14px;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .bingo-card {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
+  align-content: start;
 }
 
 .card-cell {
   aspect-ratio: 1;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid rgba(176, 190, 197, 0.38);
   background: linear-gradient(180deg, #ffffff, #f5f7f8);
   color: #263238;
@@ -1030,7 +1072,7 @@ input {
 }
 
 .cell-value {
-  font-size: clamp(0.92rem, 1.8vw, 1.34rem);
+  font-size: clamp(0.82rem, 1.6vw, 1.18rem);
   font-weight: 800;
 }
 
@@ -1063,36 +1105,33 @@ input {
 }
 
 .winner-stack {
-  width: min(1180px, 100%);
+  width: 100%;
   margin: 0 auto;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .winner-panel {
-  padding: 24px;
+  padding: 18px;
   border-radius: 28px;
 }
 
 .result-actions {
-  width: min(1180px, 100%);
+  width: 100%;
   margin: 0 auto;
 }
 
-@media (max-width: 900px) {
-  .room-layout,
-  .game-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .title-panel {
-    min-height: auto;
-    margin-top: 24px;
-  }
+.title-panel {
+  min-height: auto;
+  margin-top: 0;
 }
 
 @media (max-width: 640px) {
   .app-shell {
     padding-left: 14px;
     padding-right: 14px;
+    padding-top: 14px;
+    padding-bottom: 16px;
   }
 
   .title-panel,
