@@ -27,6 +27,32 @@ type GameScreenProps = {
   onSubmitEventChoice: (direction: EventDirection) => void;
 };
 
+const MAX_BINGO_NUMBER = 75;
+
+const getNextEventValue = (value: number, direction: EventDirection) => {
+  if (direction === "clockwise") {
+    return value === MAX_BINGO_NUMBER ? 1 : value + 1;
+  }
+
+  return value === 1 ? MAX_BINGO_NUMBER : value - 1;
+};
+
+const buildEventTrackValues = (
+  from: number,
+  to: number,
+  direction: EventDirection,
+) => {
+  const values = [from];
+  let currentValue = from;
+
+  while (currentValue !== to) {
+    currentValue = getNextEventValue(currentValue, direction);
+    values.push(currentValue);
+  }
+
+  return values;
+};
+
 export const GameScreen = ({
   room,
   currentPlayer,
@@ -55,9 +81,7 @@ export const GameScreen = ({
   const [displayNumber, setDisplayNumber] = useState<number | null>(null);
   const [eventTransition, setEventTransition] = useState<{
     key: string;
-    from: number;
-    to: number;
-    direction: EventDirection;
+    values: number[];
   } | null>(null);
   const previousDrawAnimatingRef = useRef(false);
   const lastDrawPresentationKeyRef = useRef("");
@@ -166,11 +190,15 @@ export const GameScreen = ({
 
       timeoutIds.push(
         window.setTimeout(() => {
+          const values = buildEventTrackValues(
+            segment.from,
+            segment.to,
+            segment.direction,
+          );
+
           setEventTransition({
             key: `${resolvedEventAnimationId}:${segment.order}`,
-            from: segment.from,
-            to: segment.to,
-            direction: segment.direction,
+            values,
           });
         }, elapsed),
       );
@@ -204,14 +232,15 @@ export const GameScreen = ({
     };
   }, [currentEvent, resolvedEventAnimationId, resolvedTimeline]);
 
-  const animatedTrackValues = useMemo(() => {
-    if (!eventTransition) return null;
+  const eventTrackStyle = useMemo(() => {
+    if (!eventTransition) return undefined;
 
-    if (eventTransition.direction === "clockwise") {
-      return [eventTransition.from, eventTransition.to];
-    }
+    const trackLength = eventTransition.values.length;
 
-    return [eventTransition.to, eventTransition.from];
+    return {
+      "--event-track-length": `${trackLength}`,
+      "--event-track-end": `${((trackLength - 1) / trackLength) * 100}%`,
+    } as CSSProperties;
   }, [eventTransition]);
   const visibleNumber =
     isResolvedEventReady || isEventAnimating
@@ -342,21 +371,16 @@ export const GameScreen = ({
                 {isResolvedEventReady ? (
                   <div className="event-draw-stage">
                     <div className="event-number-window">
-                      {eventTransition && animatedTrackValues ? (
+                      {eventTransition ? (
                         <div
                           key={eventTransition.key}
-                          className={`event-number-track ${
-                            eventTransition.direction === "clockwise"
-                              ? "is-forward"
-                              : "is-backward"
-                          }`}
+                          className="event-number-track"
+                          style={eventTrackStyle}
                         >
-                          {animatedTrackValues.map((value, index) => (
+                          {eventTransition.values.map((value, index) => (
                             <div
                               key={`${eventTransition.key}:${value}:${index}`}
-                              className={`event-number-value ${
-                                value === displayNumber ? "is-origin" : "is-target"
-                              }`}
+                              className="event-number-value"
                             >
                               {value}
                             </div>
