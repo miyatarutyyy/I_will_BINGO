@@ -55,7 +55,7 @@ export const TitleScreen = ({
         <div className="join-stack">
           <button
             type="button"
-            className="primary-button"
+            className="secondary-button"
             onClick={onOpenCreateModal}
             disabled={isBusy || isBootstrapping}
           >
@@ -64,7 +64,7 @@ export const TitleScreen = ({
 
           <button
             type="button"
-            className="secondary-button"
+            className="primary-button"
             onClick={onOpenJoinModal}
             disabled={isBusy || isBootstrapping}
           >
