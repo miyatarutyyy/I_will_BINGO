@@ -1,52 +1,206 @@
-* アプリ
-"I will BINGO"
+* I will BINGO 総合仕様書
 
-* アプリの目的
-- なにかを作りきる経験をみにつける
+この文書は、リポジトリ全体の現在実装を基準にした総合仕様書です。
+=2026-03-31= 時点で、実際に動作している frontend / backend / 公開前提を要約しています。
 
-* アプリの概要
-- ビンゴゲーム
-- しかしただ番号を聞いて穴を空けるのではない
-- 通常の抽選とマス開放に加えて、共有イベントゲージが存在する
-- 誰かが通常マスを開くたびに共有イベントゲージが増加する
-- 共有イベントゲージが満タンになると、次ラウンド開始時に共有イベントが発火する
-- 共有イベントでは、抽選番号をそのまま確定せず、プレイヤー全員の選択で番号遷移の経路を決める
-- ゲーム途中のリロードやブラウザバックには現時点で正式対応しておらず、離脱操作時は警告を表示する
-  
-* ユーザーの流れ
-1.ルーム準備
-  - ホストユーザーがルームを作成
-    - このときルームにIDが付与される
-  - 参加者がルームIDを入力して入室
-  - 全員揃ったらホストユーザーがゲームを開始
+詳細仕様は次を参照してください。
 
-2.初期配布
-  - 各プレイヤーにビンゴカードを配布
-    - 5x5のマスのビンゴカード
-  - 各プレイヤーはFREEマスを開いて準備完了にする
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/docs/frontend-specification.org][frontend 仕様書]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/docs/backend-specification.org][backend 仕様書]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/docs/deployment.org][公開手順メモ]]
 
-3.ラウンド進行
-  1. 番号が一つ抽選され、全員に公開される
-  2. 共有イベントゲージが満タンなら、抽選後に共有イベントが発火する
-    - 全プレイヤーにイベントモーダルが表示される
-    - サーバーは抽選番号を =start= とし、未確定番号から =goal= を 1 つ選ぶ
-    - サーバーは参加人数 - 1 個の中継番号をランダムに選び、=start -> relay -> ... -> goal= の区間列を作る
-    - 各プレイヤーには担当区間が 1 つランダムに割り当てられる
-    - 各プレイヤーは、自分の担当区間に対する「時計回り」「反時計回り」の 2 通りの移動量カードから 1 枚を選ぶ
-    - 全プレイヤーの提出が終わると、サーバーは各区間の移動方向と移動量を確定し、最終的に =goal= をそのラウンドの確定番号にする
-    - イベント完了時に共有イベントゲージはリセットされる
-  3. 該当番号があればクリック(タップ)でマスを開く
-  4. 該当番号がなければスキップする
-  5. 全プレイヤーのアクションが完了したら、ホストが次ラウンドを開始する
+* 更新履歴
 
-* 画面離脱の扱い
-- ルーム参加中や復元中にリロード、タブを閉じる、別ページへ移動しようとした場合は、ブラウザ標準の確認ダイアログを表示する
-- ブラウザバックは未対応とし、実行時は警告を表示して現在画面に留める
-- 正規の離脱はアプリ内ボタンから行う
+| 日付       | 更新内容 |
+|------------+----------|
+| 2026-03-31 | 総合仕様書を実装準拠で全面更新。ゲーム進行、画面構成、API、データ構造、運用前提を現行コードベースに合わせて整理した。 |
 
-* 主要な画面の構成
-* 機能一覧
-* データの構造
-** ER図
-* 技術スタック
-* API設計
+* 1. アプリ概要
+
+- アプリ名は =I will BINGO=
+- 身内向けに短期公開できるところまで整えた、リアルタイム同期つきオンラインビンゴゲームである
+- frontend は React + Vite、backend は Express で構成する
+- ルーム状態は backend のインメモリに保持し、ルーム更新は HTTP API と SSE で同期する
+
+* 2. アプリの目的
+
+- ルーム単位で複数人が同じ進行状態を共有しながらビンゴを遊べること
+- 通常の抽選に加え、共有イベントゲージと番号遷移イベントによってラウンド進行に変化を入れること
+- 最低限のローカル公開と簡易デプロイができる構成にしておくこと
+
+* 3. システム構成
+
+** 3.1 frontend
+
+- プレイヤー名入力
+- ルーム作成と参加
+- 待機画面、ゲーム画面、リザルト画面の表示
+- ルーム状態の復元
+- SSE によるリアルタイム同期
+- ページ離脱警告
+
+** 3.2 backend
+
+- ルーム作成、参加、退室
+- カード配布、ready 管理、ゲーム開始
+- 抽選番号管理、ラウンド進行、ビンゴ判定
+- 共有イベントゲージとイベント選択処理
+- SSE 配信
+- =/health= によるヘルスチェック
+
+** 3.3 通信方式
+
+- 通常操作は JSON API
+- ルーム状態同期は =GET /rooms/:roomId/events= の SSE
+- frontend は =VITE_API_BASE_URL=、backend は =PORT= / =CORS_ORIGIN= を利用する
+
+* 4. ユーザーの流れ
+
+** 4.1 ルーム準備
+
+1. ホストがタイトル画面からルームを作成する
+2. backend はルーム ID とホストの =playerId= を発行する
+3. 参加者はルーム ID を入力して入室する
+4. 各プレイヤーは =準備OK= を押し、カード作成と FREE マス開封を完了する
+5. 全員 ready 後、ホストがゲームを開始する
+
+** 4.2 ゲーム進行
+
+1. セッション開始時に最初の抽選番号が決まる
+2. 各プレイヤーは自分のカードを見て、該当番号があればそのマスを開き、なければスキップする
+3. 通常マスを新規開封すると共有イベントゲージが増加する
+4. 全員の操作が終わると、ホストが次ラウンドを開始する
+5. ゲージが満タン以上なら、次ラウンドは通常アクション前に共有イベントへ移行する
+
+** 4.3 共有イベント
+
+1. 通常抽選で =startNumber= を決定する
+2. 未確定番号から =goalNumber= を 1 つ選ぶ
+3. 参加人数 - 1 個の中継番号を選び、=start -> relay -> ... -> goal= の経路を作る
+4. 各区間を各プレイヤーへ 1 つずつランダム割当する
+5. 各プレイヤーは自分の区間について、=clockwise= または =counterclockwise= の 2 択から 1 つ選ぶ
+6. 全員提出後、=goalNumber= をそのラウンドの確定番号として採用し、通常のカード操作へ戻る
+7. この時点で共有イベントゲージは =0= にリセットされる
+
+** 4.4 終了
+
+- 誰か 1 人以上が 1 ライン以上ビンゴすると終了する
+- または、最終確定番号の履歴が 75 個に達すると終了する
+- 終了後は勝者一覧と勝者カードをリザルト画面に表示する
+
+* 5. 画面構成
+
+** 5.1 タイトル画面
+
+- プレイヤー名入力
+- =ルームを作成する=
+- =ルームに参加する=
+- 作成確認モーダル、参加モーダル
+
+** 5.2 ルーム待機画面
+
+- ルーム ID とコピー導線
+- プレイヤー一覧
+- =準備OK=
+- ホストのみ =セッションを開始=
+- =ルームを退室する=
+
+** 5.3 ゲーム画面
+
+- 現在の抽選番号
+- 共有イベントゲージ
+- 抽選演出
+- 自分のビンゴカード
+- Bingo / Reach カウンタ
+- 状態に応じて切り替わる下部ボタン
+- 必要時のみ共有イベントモーダル
+
+** 5.4 リザルト画面
+
+- 勝者見出し
+- 勝者カード一覧
+- =ゲームを終了=
+
+* 6. データ構造
+
+** 6.1 Room
+
+- =id=
+- =hostPlayerId=
+- =players=
+- =currentSession=
+
+** 6.2 Player
+
+- =id=
+- =name=
+
+** 6.3 GameSession
+
+- =id=
+- =status=: =waiting= / =in_progress= / =finished=
+- =phase=: 進行フェーズ
+- =round=
+- =currentDrawnNumber=
+- =drawnNumbers=
+- =eventGauge=
+- =eventGaugeMax=
+- =currentEvent=
+- =endReason=
+- =winners=
+- =endCondition=
+- =playerStates=
+
+** 6.4 PlayerSessionState
+
+- =card=
+- =isReadyForStart=
+- =hasActedThisRound=
+- =hasSubmittedEventChoice=
+
+** 6.5 BingoCard
+
+- =5 x 5= の 25 マス
+- FREE マス位置は =12=
+- 数字は =1..75= から重複なしで 24 個
+- 列ごとの数値帯制約は採用していない
+
+* 7. API 一覧
+
+- =GET /health=: backend の疎通確認
+- =POST /rooms=: ルーム作成
+- =GET /rooms/:roomId=: ルーム取得
+- =POST /rooms/:roomId/join=: ルーム参加
+- =DELETE /rooms/:roomId=: ホスト退室とルーム終了
+- =POST /rooms/:roomId/leave=: 非ホスト退室
+- =GET /rooms/:roomId/events=: SSE 購読
+- =POST /rooms/:roomId/session/setup=: カード作成
+- =POST /rooms/:roomId/session/ready=: ready 送信
+- =POST /rooms/:roomId/session/start=: ホスト開始
+- =POST /rooms/:roomId/session/act=: ラウンド行動
+- =GET /rooms/:roomId/session/event-choice=: 共有イベント選択肢取得
+- =POST /rooms/:roomId/session/event-choice=: 共有イベント選択提出
+- =POST /rooms/:roomId/session/next-round=: 次ラウンド開始
+
+* 8. 技術スタック
+
+- frontend: TypeScript / React / Vite / ESLint
+- backend: TypeScript / Express / CORS
+- test: Vitest / Supertest
+- 同時開発起動: ルートの =npm run dev=
+
+* 9. 運用と制約
+
+- ルーム状態はインメモリ保持なので、backend 再起動で消える
+- 認証は未実装で、=playerId= を知っていればそのプレイヤーとして API を呼べる
+- 複数インスタンス運用には未対応
+- セッション再戦機能は未実装
+- ルーム参加中や復元中は、リロードやタブクローズ時にブラウザ標準の離脱警告を表示する
+- ブラウザバックは未対応で、警告を出して現在画面に留める
+
+* 10. 参照ファイル
+
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/README.md][README.md]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/frontend/src/App.tsx][frontend/src/App.tsx]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/app.ts][backend/src/app.ts]]
+- [[/home/trt-ryzen7/Dev/I_will_BINGO/backend/src/routes/rooms.ts][backend/src/routes/rooms.ts]]
