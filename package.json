@@ -7,8 +7,10 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "start": "npm --prefix backend run start",
     "build": "npm --prefix frontend run build",
+    "typecheck": "npm --prefix backend run typecheck && npm --prefix frontend run typecheck",
     "lint": "npm --prefix frontend run lint",
-    "test": "vitest"
+    "test": "npm --prefix backend test",
+    "verify": "npm run typecheck && npm run build"
   },
   "devDependencies": {
     "vitest": "^4.1.1"
