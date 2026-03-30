@@ -232,21 +232,85 @@ input {
 }
 
 .event-modal {
-  width: min(460px, 100%);
-  padding-top: 34px;
+  width: min(520px, 100%);
+  min-height: 360px;
+  padding: 32px 28px 28px;
   text-align: center;
+  place-items: center;
+}
+
+.event-modal-intro,
+.event-modal-body {
+  width: 100%;
+}
+
+.event-modal-intro {
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+}
+
+.event-modal-intro h2,
+.event-modal-body h2 {
+  margin: 0;
+  font-family: Impact, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(2.6rem, 7vw, 3.5rem);
+  line-height: 0.92;
+  letter-spacing: 0.04em;
+}
+
+.event-modal-body {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+}
+
+.event-modal-body .panel-copy {
+  margin: 0;
+  font-size: 1rem;
 }
 
 .event-choice-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 18px;
+  width: 100%;
+  max-width: 320px;
 }
 
 .event-choice-card {
-  min-height: 88px;
-  font-size: 1.4rem;
-  font-weight: 800;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  border: 2px solid rgba(207, 216, 220, 0.9);
+  background: linear-gradient(180deg, #ffffff 0%, #eceff1 100%);
+  box-shadow: 0 16px 32px rgba(69, 90, 100, 0.12);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.event-choice-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 36px rgba(69, 90, 100, 0.16);
+}
+
+.event-choice-card.is-selected {
+  border-color: #ef5350;
+  box-shadow: 0 20px 38px rgba(239, 83, 80, 0.24);
+}
+
+.event-choice-card-value {
+  font-family: Impact, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(2.4rem, 8vw, 3.6rem);
+  line-height: 1;
+  color: #263238;
+}
+
+.event-submit-button {
+  max-width: 320px;
 }
 
 .leave-modal-actions {

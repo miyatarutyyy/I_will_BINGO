@@ -79,6 +79,9 @@ export const GameScreen = ({
   const [isEventAnimating, setIsEventAnimating] = useState(false);
   const [eventStepLabel, setEventStepLabel] = useState<string | null>(null);
   const [displayNumber, setDisplayNumber] = useState<number | null>(null);
+  const [showEventModalDetails, setShowEventModalDetails] = useState(false);
+  const [selectedEventDirection, setSelectedEventDirection] =
+    useState<EventDirection | null>(null);
   const [eventTransition, setEventTransition] = useState<{
     key: string;
     values: number[];
@@ -117,7 +120,8 @@ export const GameScreen = ({
       ? currentEvent.animationId
       : "";
   const isResolvedEventReady = resolvedEventAnimationId !== "";
-  const isDrawRevealActive = drawPresentationKey !== "" && !isResolvedEventReady;
+  const isDrawRevealActive =
+    drawPresentationKey !== "" && !isResolvedEventReady;
   const canActNow = canAct && !isDrawAnimating && !isEventAnimating;
   const isEventModalOpen =
     isEventChoicePending &&
@@ -135,7 +139,9 @@ export const GameScreen = ({
 
     if (drawPresentationKey !== lastDrawPresentationKeyRef.current) {
       lastDrawPresentationKeyRef.current = drawPresentationKey;
-      setCompletedDrawPresentationKey(isResolvedEventReady ? drawPresentationKey : "");
+      setCompletedDrawPresentationKey(
+        isResolvedEventReady ? drawPresentationKey : "",
+      );
     }
   }, [drawPresentationKey, isResolvedEventReady]);
 
@@ -153,6 +159,42 @@ export const GameScreen = ({
 
     previousDrawAnimatingRef.current = isDrawAnimating;
   }, [drawPresentationKey, isDrawAnimating, isDrawRevealActive]);
+
+  useEffect(() => {
+    if (!isEventModalOpen) {
+      setShowEventModalDetails(false);
+      setSelectedEventDirection(null);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowEventModalDetails(true);
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isEventModalOpen]);
+
+  useEffect(() => {
+    if (!eventChoice || hasSubmittedEventChoice) {
+      setSelectedEventDirection(null);
+      return;
+    }
+
+    setSelectedEventDirection((currentDirection) => {
+      if (
+        currentDirection &&
+        eventChoice.options.some(
+          (option) => option.direction === currentDirection,
+        )
+      ) {
+        return currentDirection;
+      }
+
+      return eventChoice.options[0]?.direction ?? null;
+    });
+  }, [eventChoice, hasSubmittedEventChoice]);
 
   useEffect(() => {
     if (!currentEvent || resolvedEventAnimationId === "") return;
@@ -246,9 +288,15 @@ export const GameScreen = ({
     isResolvedEventReady || isEventAnimating
       ? (displayNumber ?? currentEvent?.startNumber ?? currentDrawnNumber)
       : currentDrawnNumber;
+  const selectedEventOption =
+    eventChoice?.options.find(
+      (option) => option.direction === selectedEventDirection,
+    ) ?? null;
 
   const renderProgressButton = () => {
+    console.log("抽選中before");
     if (isDrawAnimating) {
+      console.log("抽選中before");
       return (
         <button type="button" className="secondary-button" disabled>
           抽選中
@@ -330,32 +378,74 @@ export const GameScreen = ({
             aria-modal="true"
             role="dialog"
           >
-            <div className="modal-stack">
-              <h2>運命に抗え！</h2>
-              <p className="panel-copy">カードを一枚選んでください。</p>
-              {eventChoice ? (
-                <>
-                  <div className="event-choice-grid">
-                    {eventChoice.options.map((option) => (
-                      <button
-                        key={option.direction}
-                        type="button"
-                        className="primary-button event-choice-card"
-                        onClick={() => onSubmitEventChoice(option.direction)}
-                        disabled={isBusy || hasSubmittedEventChoice}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                  {hasSubmittedEventChoice ? (
-                    <p className="panel-copy">他プレイヤーの提出待ちです。</p>
-                  ) : null}
-                </>
-              ) : (
-                <p className="panel-copy">イベントカードを読み込んでいます。</p>
-              )}
-            </div>
+            {!showEventModalDetails ? (
+              <div className="event-modal-intro">
+                <h2>運命に抗え!</h2>
+              </div>
+            ) : (
+              <div className="event-modal-body">
+                <h2>運命に抗え!</h2>
+                <p className="panel-copy">どちらか一枚を選びとってください</p>
+                {eventChoice ? (
+                  <>
+                    <div className="event-choice-grid">
+                      {eventChoice.options.map((option) => (
+                        <button
+                          key={option.direction}
+                          type="button"
+                          className={`event-choice-card ${
+                            selectedEventDirection === option.direction
+                              ? "is-selected"
+                              : ""
+                          }`}
+                          onClick={() =>
+                            setSelectedEventDirection(option.direction)
+                          }
+                          disabled={isBusy || hasSubmittedEventChoice}
+                          aria-pressed={
+                            selectedEventDirection === option.direction
+                          }
+                        >
+                          <span className="event-choice-card-value">
+                            {option.step}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className={
+                        hasSubmittedEventChoice
+                          ? "secondary-button event-submit-button"
+                          : "primary-button event-submit-button"
+                      }
+                      onClick={() => {
+                        if (selectedEventOption) {
+                          onSubmitEventChoice(selectedEventOption.direction);
+                        }
+                      }}
+                      disabled={
+                        isBusy ||
+                        hasSubmittedEventChoice ||
+                        selectedEventOption === null
+                      }
+                    >
+                      {hasSubmittedEventChoice
+                        ? "他のプレイヤーを待っています"
+                        : "運命を変える"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary-button event-submit-button"
+                    disabled
+                  >
+                    イベントカードを読み込んでいます
+                  </button>
+                )}
+              </div>
+            )}
           </section>
         </div>
       ) : null}
