@@ -57,6 +57,12 @@ const moveToNextRound = async (roomId: string, playerId: string) => {
     .send({ playerId });
 };
 
+const resolveEvent = async (roomId: string, playerId: string) => {
+  return request(app)
+    .post(`/rooms/${roomId}/session/resolve-event`)
+    .send({ playerId });
+};
+
 describe.sequential("roomsRouter", () => {
   it("ルームを作成できる", async () => {
     const response = await request(app).post("/rooms").send({ name: "host" });
@@ -284,12 +290,104 @@ describe.sequential("roomsRouter", () => {
     expect(firstActResponse.status).toBe(200);
     expect(firstActResponse.body.room.currentSession.eventGauge).toBe(10);
 
+    const guestState = room.currentSession.playerStates[guestPlayerId];
+    const guestMatchingCell = guestState.card?.cells.find((cell) => {
+      return cell.value === closedNormalCell.value && !cell.isFree;
+    });
+
+    if (guestMatchingCell) {
+      guestMatchingCell.isOpened = true;
+    }
+
     room.currentSession.currentDrawnNumber = closedNormalCell.value;
 
     const secondActResponse = await actPlayer(roomId, guestPlayerId);
 
     expect(secondActResponse.status).toBe(200);
     expect(secondActResponse.body.room.currentSession.eventGauge).toBe(10);
+  });
+
+  it("イベントゲージ満タン後の次ラウンド開始でイベント待ちフェーズに入る", async () => {
+    const { roomId, hostPlayerId } = await createRoom();
+    const { playerId: guestPlayerId } = await joinRoom(roomId);
+
+    await setupPlayer(roomId, hostPlayerId);
+    await setupPlayer(roomId, guestPlayerId);
+    await readyPlayer(roomId, hostPlayerId);
+    await readyPlayer(roomId, guestPlayerId);
+    await startSession(roomId, hostPlayerId);
+
+    const room = getRoom(roomId);
+    expect(room).not.toBeNull();
+
+    if (!room) return;
+
+    room.currentSession.eventGauge = room.currentSession.eventGaugeMax;
+
+    await actPlayer(roomId, hostPlayerId);
+    await actPlayer(roomId, guestPlayerId);
+
+    const nextRoundResponse = await moveToNextRound(roomId, hostPlayerId);
+
+    expect(nextRoundResponse.status).toBe(200);
+    expect(nextRoundResponse.body.room.currentSession.phase).toBe(
+      "waiting_for_event_resolution",
+    );
+    expect(nextRoundResponse.body.room.currentSession.eventTriggeredThisRound).toBe(
+      true,
+    );
+
+    const players = nextRoundResponse.body.room.players as Array<{
+      hasConfirmedEvent: boolean;
+    }>;
+
+    expect(players.every((player) => player.hasConfirmedEvent === false)).toBe(
+      true,
+    );
+  });
+
+  it("全員がイベント確認するとゲージをリセットして通常進行へ戻る", async () => {
+    const { roomId, hostPlayerId } = await createRoom();
+    const { playerId: guestPlayerId } = await joinRoom(roomId);
+
+    await setupPlayer(roomId, hostPlayerId);
+    await setupPlayer(roomId, guestPlayerId);
+    await readyPlayer(roomId, hostPlayerId);
+    await readyPlayer(roomId, guestPlayerId);
+    await startSession(roomId, hostPlayerId);
+
+    const room = getRoom(roomId);
+    expect(room).not.toBeNull();
+
+    if (!room) return;
+
+    room.currentSession.eventGauge = room.currentSession.eventGaugeMax;
+
+    await actPlayer(roomId, hostPlayerId);
+    await actPlayer(roomId, guestPlayerId);
+    await moveToNextRound(roomId, hostPlayerId);
+    const eventGaugeBeforeResolve = room.currentSession.eventGauge;
+
+    const firstResolveResponse = await resolveEvent(roomId, hostPlayerId);
+
+    expect(firstResolveResponse.status).toBe(200);
+    expect(firstResolveResponse.body.room.currentSession.phase).toBe(
+      "waiting_for_event_resolution",
+    );
+    expect(firstResolveResponse.body.room.currentSession.eventGauge).toBe(
+      eventGaugeBeforeResolve,
+    );
+
+    const secondResolveResponse = await resolveEvent(roomId, guestPlayerId);
+
+    expect(secondResolveResponse.status).toBe(200);
+    expect(secondResolveResponse.body.room.currentSession.phase).toBe(
+      "waiting_for_player_actions",
+    );
+    expect(secondResolveResponse.body.room.currentSession.eventGauge).toBe(0);
+    expect(secondResolveResponse.body.room.currentSession.eventTriggeredThisRound).toBe(
+      false,
+    );
   });
 
   it("カード未作成のまま ready はできない", async () => {

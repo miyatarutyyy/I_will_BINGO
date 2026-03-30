@@ -20,11 +20,13 @@ export type PlayerSessionState = {
   card: BingoCard | null;
   isReadyForStart: boolean;
   hasActedThisRound: boolean;
+  hasConfirmedEvent: boolean;
 };
 
 export type RoundPhase =
   | "waiting_for_ready"
   | "waiting_for_host_start"
+  | "waiting_for_event_resolution"
   | "waiting_for_player_actions"
   | "waiting_for_host_next_round"
   | "finished";

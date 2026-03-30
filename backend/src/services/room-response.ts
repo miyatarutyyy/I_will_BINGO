@@ -20,6 +20,7 @@ export const buildPlayerResponse = (room: Room, player: Player) => {
       name: player.name,
       isReadyForStart: playerState.isReadyForStart,
       hasActedThisRound: playerState.hasActedThisRound,
+      hasConfirmedEvent: playerState.hasConfirmedEvent,
       card: null,
     };
   }
@@ -29,6 +30,7 @@ export const buildPlayerResponse = (room: Room, player: Player) => {
     name: player.name,
     isReadyForStart: playerState.isReadyForStart,
     hasActedThisRound: playerState.hasActedThisRound,
+    hasConfirmedEvent: playerState.hasConfirmedEvent,
     ...buildCardSummary(playerState.card),
   };
 };

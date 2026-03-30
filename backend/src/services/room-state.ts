@@ -22,6 +22,7 @@ export const createPlayerSessionState = (): PlayerSessionState => {
     card: null,
     isReadyForStart: false,
     hasActedThisRound: false,
+    hasConfirmedEvent: false,
   };
 };
 
@@ -92,6 +93,13 @@ export const haveAllPlayersActed = (room: Room): boolean => {
   return room.players.every((player) => {
     const state = room.currentSession.playerStates[player.id];
     return state.hasActedThisRound;
+  });
+};
+
+export const haveAllPlayersConfirmedEvent = (room: Room): boolean => {
+  return room.players.every((player) => {
+    const state = room.currentSession.playerStates[player.id];
+    return state.hasConfirmedEvent;
   });
 };
 

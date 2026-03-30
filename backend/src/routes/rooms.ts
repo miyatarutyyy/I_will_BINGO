@@ -19,6 +19,7 @@ import {
   createRoom,
   getPlayer,
   getPlayerState,
+  haveAllPlayersConfirmedEvent,
   haveAllPlayersActed,
 } from "../services/room-state.js";
 import {
@@ -58,6 +59,40 @@ const getRoomOr404 = (roomId: string, res: Response) => {
   }
 
   return room;
+};
+
+const prepareNextRound = (room: NonNullable<ReturnType<typeof getRoom>>) => {
+  const result = drawNumber({
+    drawnNumbers: room.currentSession.drawnNumbers,
+  });
+
+  if (result.drawnNumber === null) {
+    room.currentSession.status = "finished";
+    room.currentSession.phase = "finished";
+    room.currentSession.endReason = "all_numbers_drawn";
+
+    return { drawnNumber: null as number | null };
+  }
+
+  room.currentSession.round += 1;
+  room.currentSession.currentDrawnNumber = result.drawnNumber;
+  room.currentSession.drawnNumbers = result.nextState.drawnNumbers;
+
+  const shouldTriggerEvent =
+    room.currentSession.eventGaugeMax > 0 &&
+    room.currentSession.eventGauge >= room.currentSession.eventGaugeMax;
+
+  room.currentSession.phase = shouldTriggerEvent
+    ? "waiting_for_event_resolution"
+    : "waiting_for_player_actions";
+  room.currentSession.eventTriggeredThisRound = shouldTriggerEvent;
+
+  room.players.forEach((player) => {
+    room.currentSession.playerStates[player.id].hasActedThisRound = false;
+    room.currentSession.playerStates[player.id].hasConfirmedEvent = false;
+  });
+
+  return { drawnNumber: result.drawnNumber };
 };
 
 roomsRouter.post("/rooms", (req, res) => {
@@ -370,6 +405,7 @@ roomsRouter.post("/rooms/:roomId/session/start", (req, res) => {
 
   room.players.forEach((player) => {
     room.currentSession.playerStates[player.id].hasActedThisRound = false;
+    room.currentSession.playerStates[player.id].hasConfirmedEvent = false;
   });
 
   broadcastRoom(room);
@@ -474,6 +510,67 @@ roomsRouter.post("/rooms/:roomId/session/act", (req, res) => {
   });
 });
 
+roomsRouter.post("/rooms/:roomId/session/resolve-event", (req, res) => {
+  const room = getRoomOr404(req.params.roomId, res);
+
+  if (!room) return;
+
+  if (room.currentSession.status !== "in_progress") {
+    return res.status(409).json({
+      message: "セッション進行中ではありません。",
+    });
+  }
+
+  if (room.currentSession.phase !== "waiting_for_event_resolution") {
+    return res.status(409).json({
+      message: "現在はイベント確認を受け付ける段階ではありません。",
+    });
+  }
+
+  if (!room.currentSession.eventTriggeredThisRound) {
+    return res.status(409).json({
+      message: "このラウンドで処理待ちのイベントはありません。",
+    });
+  }
+
+  const playerId = req.body?.playerId;
+  const player = getPlayer(room, playerId);
+
+  if (!player) {
+    return res.status(404).json({ message: "プレイヤーが見つかりません。" });
+  }
+
+  const playerState = getPlayerState(room.currentSession, playerId);
+
+  if (!playerState) {
+    return res.status(404).json({
+      message: "プレイヤー状態が見つかりません。",
+    });
+  }
+
+  if (playerState.hasConfirmedEvent) {
+    return res.status(409).json({
+      message: "このラウンドのイベント確認は完了しています。",
+    });
+  }
+
+  playerState.hasConfirmedEvent = true;
+
+  if (haveAllPlayersConfirmedEvent(room)) {
+    room.currentSession.eventGauge = 0;
+    room.currentSession.eventTriggeredThisRound = false;
+    room.currentSession.phase = "waiting_for_player_actions";
+  }
+
+  broadcastRoom(room);
+
+  return res.status(200).json({
+    message: "イベント確認を受け付けました。",
+    room: buildRoomResponse(room).room,
+    player: buildPlayerResponse(room, player),
+  });
+});
+
 roomsRouter.post("/rooms/:roomId/session/next-round", (req, res) => {
   const room = getRoomOr404(req.params.roomId, res);
 
@@ -505,34 +602,16 @@ roomsRouter.post("/rooms/:roomId/session/next-round", (req, res) => {
     });
   }
 
-  const result = drawNumber({
-    drawnNumbers: room.currentSession.drawnNumbers,
-  });
+  const result = prepareNextRound(room);
+
+  broadcastRoom(room);
 
   if (result.drawnNumber === null) {
-    room.currentSession.status = "finished";
-    room.currentSession.phase = "finished";
-    room.currentSession.endReason = "all_numbers_drawn";
-
-    broadcastRoom(room);
-
     return res.status(200).json({
       message: "すべての番号が抽選されたためセッションを終了しました。",
       room: buildRoomResponse(room).room,
     });
   }
-
-  room.currentSession.round += 1;
-  room.currentSession.currentDrawnNumber = result.drawnNumber;
-  room.currentSession.drawnNumbers = result.nextState.drawnNumbers;
-  room.currentSession.phase = "waiting_for_player_actions";
-  room.currentSession.eventTriggeredThisRound = false;
-
-  room.players.forEach((player) => {
-    room.currentSession.playerStates[player.id].hasActedThisRound = false;
-  });
-
-  broadcastRoom(room);
 
   return res.status(200).json({
     message: "次ラウンドへ移行しました。",

@@ -13,6 +13,7 @@ vi.mock("../store/room-store.js", async () => {
 });
 
 import app from "../app.js";
+import { getRoom } from "../store/room-store.js";
 import { broadcastRoom } from "../store/room-store.js";
 
 const broadcastRoomMock = vi.mocked(broadcastRoom);
@@ -70,6 +71,14 @@ const actPlayer = async (roomId: string, playerId: string) => {
   expect(response.status).toBe(200);
 };
 
+const resolveEvent = async (roomId: string, playerId: string) => {
+  const response = await request(app)
+    .post(`/rooms/${roomId}/session/resolve-event`)
+    .send({ playerId });
+
+  expect(response.status).toBe(200);
+};
+
 describe.sequential("roomsRouter SSE", () => {
   beforeEach(() => {
     broadcastRoomMock.mockClear();
@@ -109,8 +118,47 @@ describe.sequential("roomsRouter SSE", () => {
     expect(updatedRoom.currentSession.drawnNumbers).toHaveLength(2);
     expect(
       Object.values(updatedRoom.currentSession.playerStates).every(
-        (state) => state.hasActedThisRound === false,
+        (state) =>
+          state.hasActedThisRound === false &&
+          state.hasConfirmedEvent === false,
       ),
+    ).toBe(true);
+  });
+
+  it("resolve-event 成功時に room_updated 用の broadcastRoom を呼ぶ", async () => {
+    const { roomId, hostPlayerId } = await createRoom();
+    const guestPlayerId = await joinRoom(roomId);
+
+    await setupPlayer(roomId, hostPlayerId);
+    await setupPlayer(roomId, guestPlayerId);
+    await readyPlayer(roomId, hostPlayerId);
+    await readyPlayer(roomId, guestPlayerId);
+    await startSession(roomId, hostPlayerId);
+    await actPlayer(roomId, hostPlayerId);
+    await actPlayer(roomId, guestPlayerId);
+
+    const room = getRoom(roomId);
+    expect(room).not.toBeNull();
+
+    if (!room) return;
+
+    room.currentSession.eventGauge = room.currentSession.eventGaugeMax;
+
+    await request(app)
+      .post(`/rooms/${roomId}/session/next-round`)
+      .send({ playerId: hostPlayerId });
+
+    broadcastRoomMock.mockClear();
+
+    await resolveEvent(roomId, hostPlayerId);
+
+    expect(broadcastRoomMock).toHaveBeenCalledTimes(1);
+
+    const [updatedRoom] = broadcastRoomMock.mock.calls[0];
+
+    expect(updatedRoom.currentSession.phase).toBe("waiting_for_event_resolution");
+    expect(
+      updatedRoom.currentSession.playerStates[hostPlayerId].hasConfirmedEvent,
     ).toBe(true);
   });
 });
