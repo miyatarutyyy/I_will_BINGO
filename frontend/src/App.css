@@ -786,16 +786,17 @@ input {
 }
 
 .number-gauge-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  gap: 18px;
   width: 100%;
 }
 
 .number-gauge-orb {
   --gauge-progress: 0%;
   --gauge-progress-soft: 0%;
+  grid-column: 2;
+  justify-self: center;
   width: min(30vw, 320px);
   aspect-ratio: 1;
   padding: 10px;
@@ -905,8 +906,15 @@ input {
   height: 100%;
   display: grid;
   grid-template-columns: repeat(var(--event-track-length, 2), minmax(0, 1fr));
-  animation: slide-number-forward 620ms cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
   will-change: transform;
+}
+
+.event-number-track.is-forward {
+  animation: slide-number-forward 620ms cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
+}
+
+.event-number-track.is-backward {
+  animation: slide-number-backward 620ms cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
 }
 
 .event-number-value {
@@ -920,6 +928,9 @@ input {
 }
 
 .event-step-indicator {
+  grid-column: 3;
+  justify-self: start;
+  margin-left: 18px;
   min-width: 92px;
   padding: 14px 16px;
   border-radius: 22px;
@@ -952,6 +963,16 @@ input {
 
   to {
     transform: translateX(calc(-1 * var(--event-track-end, 50%)));
+  }
+}
+
+@keyframes slide-number-backward {
+  from {
+    transform: translateX(calc(-1 * var(--event-track-end, 50%)));
+  }
+
+  to {
+    transform: translateX(0);
   }
 }
 

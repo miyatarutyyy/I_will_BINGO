@@ -91,6 +91,7 @@ export const GameScreen = ({
     useState<TransientOverlay>(null);
   const [eventTransition, setEventTransition] = useState<{
     key: string;
+    direction: EventDirection;
     values: number[];
   } | null>(null);
   const previousDrawAnimatingRef = useRef(false);
@@ -292,7 +293,11 @@ export const GameScreen = ({
 
           setEventTransition({
             key: `${resolvedEventAnimationId}:${segment.order}`,
-            values,
+            direction: segment.direction,
+            values:
+              segment.direction === "counterclockwise"
+                ? [...values].reverse()
+                : values,
           });
         }, elapsed),
       );
@@ -534,7 +539,11 @@ export const GameScreen = ({
                       {eventTransition ? (
                         <div
                           key={eventTransition.key}
-                          className="event-number-track"
+                          className={`event-number-track ${
+                            eventTransition.direction === "counterclockwise"
+                              ? "is-backward"
+                              : "is-forward"
+                          }`}
                           style={eventTrackStyle}
                         >
                           {eventTransition.values.map((value, index) => (
@@ -567,7 +576,6 @@ export const GameScreen = ({
 
             {isEventAnimating && eventStepLabel ? (
               <div className="event-step-indicator" aria-live="polite">
-                <span className="event-step-label">Move</span>
                 <strong>{eventStepLabel}</strong>
               </div>
             ) : null}

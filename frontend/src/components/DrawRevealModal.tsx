@@ -4,27 +4,18 @@ const MAX_BINGO_NUMBER = 75;
 const FAST_SPIN_STEPS = 16;
 const SLOW_SPIN_STEPS = 4;
 
-const getRandomNumber = (exclude: number) => {
-  let value = exclude;
-
-  while (value === exclude) {
-    value = Math.floor(Math.random() * MAX_BINGO_NUMBER) + 1;
-  }
-
-  return value;
+const getPreviousNumber = (value: number) => {
+  return value === 1 ? MAX_BINGO_NUMBER : value - 1;
 };
 
 const buildSpinSequence = (targetNumber: number) => {
-  const sequence: number[] = [getRandomNumber(targetNumber)];
+  const totalSteps = FAST_SPIN_STEPS + SLOW_SPIN_STEPS;
+  const sequence: number[] = [targetNumber];
+  let currentValue = targetNumber;
 
-  for (let step = 0; step < FAST_SPIN_STEPS + SLOW_SPIN_STEPS; step += 1) {
-    const previousValue = sequence[sequence.length - 1] ?? targetNumber;
-    const nextValue =
-      step < FAST_SPIN_STEPS + SLOW_SPIN_STEPS - 1
-        ? getRandomNumber(previousValue)
-        : targetNumber;
-
-    sequence.push(nextValue);
+  for (let step = 0; step < totalSteps; step += 1) {
+    currentValue = getPreviousNumber(currentValue);
+    sequence.unshift(currentValue);
   }
 
   return sequence;
