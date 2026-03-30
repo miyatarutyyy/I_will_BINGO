@@ -48,6 +48,8 @@ export const GameScreen = ({
   const bingoCount = currentPlayer?.bingoCount ?? 0;
   const reachCount = currentPlayer?.reachCount ?? 0;
   const [isDrawAnimating, setIsDrawAnimating] = useState(false);
+  const [completedDrawPresentationKey, setCompletedDrawPresentationKey] =
+    useState("");
   const [isEventAnimating, setIsEventAnimating] = useState(false);
   const [eventStepLabel, setEventStepLabel] = useState<string | null>(null);
   const [displayNumber, setDisplayNumber] = useState<number | null>(null);
@@ -57,6 +59,8 @@ export const GameScreen = ({
     to: number;
     direction: EventDirection;
   } | null>(null);
+  const previousDrawAnimatingRef = useRef(false);
+  const lastDrawPresentationKeyRef = useRef("");
   const startedAnimationIdsRef = useRef(new Set<string>());
   const scoreBadgeClassName =
     bingoCount > 0
@@ -91,9 +95,40 @@ export const GameScreen = ({
   const isResolvedEventReady = resolvedEventAnimationId !== "";
   const isDrawRevealActive = drawPresentationKey !== "" && !isResolvedEventReady;
   const canActNow = canAct && !isDrawAnimating && !isEventAnimating;
-  const isEventModalOpen = isEventChoicePending && !isDrawAnimating;
+  const isEventModalOpen =
+    isEventChoicePending &&
+    !isDrawAnimating &&
+    completedDrawPresentationKey === drawPresentationKey;
   const hasSubmittedEventChoice =
     currentPlayer?.hasSubmittedEventChoice ?? false;
+
+  useEffect(() => {
+    if (drawPresentationKey === "") {
+      lastDrawPresentationKeyRef.current = "";
+      setCompletedDrawPresentationKey("");
+      return;
+    }
+
+    if (drawPresentationKey !== lastDrawPresentationKeyRef.current) {
+      lastDrawPresentationKeyRef.current = drawPresentationKey;
+      setCompletedDrawPresentationKey(isResolvedEventReady ? drawPresentationKey : "");
+    }
+  }, [drawPresentationKey, isResolvedEventReady]);
+
+  useEffect(() => {
+    const wasAnimating = previousDrawAnimatingRef.current;
+
+    if (
+      wasAnimating &&
+      !isDrawAnimating &&
+      isDrawRevealActive &&
+      drawPresentationKey !== ""
+    ) {
+      setCompletedDrawPresentationKey(drawPresentationKey);
+    }
+
+    previousDrawAnimatingRef.current = isDrawAnimating;
+  }, [drawPresentationKey, isDrawAnimating, isDrawRevealActive]);
 
   useEffect(() => {
     if (!currentEvent || resolvedEventAnimationId === "") return;
