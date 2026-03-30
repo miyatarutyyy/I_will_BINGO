@@ -15,6 +15,8 @@ import {
 } from "./lib/game";
 import type {
   ApiResponse,
+  EventChoice,
+  EventDirection,
   NoticeTone,
   PendingRoomDraft,
   Room,
@@ -71,6 +73,7 @@ const App = () => {
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState<NoticeTone>("neutral");
   const [syncStatus, setSyncStatus] = useState("offline");
+  const [eventChoice, setEventChoice] = useState<EventChoice | null>(null);
 
   const roomId = room?.id ?? null;
   const currentScreenValue = getScreenFromRoom(room);
@@ -93,9 +96,9 @@ const App = () => {
     room.currentSession.phase === "waiting_for_player_actions" &&
     currentPlayer !== null &&
     !currentPlayer.hasActedThisRound;
-  const isEventResolutionPending =
+  const isEventChoicePending =
     room?.currentSession.status === "in_progress" &&
-    room.currentSession.phase === "waiting_for_event_resolution";
+    room.currentSession.phase === "waiting_for_event_choices";
   const winners =
     room?.players.filter((player) =>
       room.currentSession.winners.includes(player.id),
@@ -180,6 +183,7 @@ const App = () => {
     if (!roomId) {
       setScreen("title");
       setSyncStatus("offline");
+      setEventChoice(null);
 
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -243,6 +247,34 @@ const App = () => {
       }
     };
   }, [currentScreenValue, roomId]);
+
+  useEffect(() => {
+    if (!room || !playerId || !isEventChoicePending) {
+      setEventChoice(null);
+      return;
+    }
+
+    let isCancelled = false;
+
+    void (async () => {
+      try {
+        const payload = await handleApiRequest(
+          `/rooms/${room.id}/session/event-choice?playerId=${encodeURIComponent(playerId)}`,
+        );
+
+        if (!payload.eventChoice || isCancelled) return;
+
+        setEventChoice(payload.eventChoice);
+      } catch {
+        if (isCancelled) return;
+        setEventChoice(null);
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isEventChoicePending, playerId, room]);
 
   const handleApiRequest = async (
     path: string,
@@ -609,35 +641,35 @@ const App = () => {
     }
   };
 
-  const handleResolveEvent = async () => {
-    if (!room || !isEventResolutionPending || !currentPlayer) return;
+  const handleSubmitEventChoice = async (direction: EventDirection) => {
+    if (!room || !isEventChoicePending || !currentPlayer) return;
 
     setIsBusy(true);
     setNotice("");
 
     try {
       const payload = await handleApiRequest(
-        `/rooms/${room.id}/session/resolve-event`,
+        `/rooms/${room.id}/session/event-choice`,
         {
           method: "POST",
-          body: JSON.stringify({ playerId }),
+          body: JSON.stringify({ playerId, direction }),
         },
       );
 
       if (!payload.room) {
-        throw new Error("イベント確認レスポンスが不正です。");
+        throw new Error("イベント選択レスポンスが不正です。");
       }
 
       await syncRoom(payload.room);
       setNotice(
-        payload.room.currentSession.phase === "waiting_for_event_resolution"
-          ? "イベント確認を送信しました。"
+        payload.room.currentSession.phase === "waiting_for_event_choices"
+          ? "イベントカードを送信しました。"
           : "イベントが完了し、ゲーム進行へ戻りました。",
       );
       setNoticeTone("success");
     } catch (error) {
       setNotice(
-        error instanceof Error ? error.message : "イベント確認に失敗しました。",
+        error instanceof Error ? error.message : "イベント選択に失敗しました。",
       );
       setNoticeTone("error");
     } finally {
@@ -775,10 +807,13 @@ const App = () => {
           isBusy={isBusy}
           canAct={canAct}
           matchingPositionId={matchingCell?.positionId ?? null}
-          isEventResolutionPending={Boolean(isEventResolutionPending)}
+          isEventChoicePending={Boolean(isEventChoicePending)}
+          eventChoice={eventChoice}
           onAct={() => void handleAct()}
           onNextRound={() => void handleNextRound()}
-          onResolveEvent={() => void handleResolveEvent()}
+          onSubmitEventChoice={(direction) =>
+            void handleSubmitEventChoice(direction)
+          }
         />
       )}
 

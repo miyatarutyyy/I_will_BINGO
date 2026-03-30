@@ -3,7 +3,13 @@ import type { CSSProperties } from "react";
 
 import { BingoCardView } from "./BingoCardView";
 import { DrawRevealModal } from "./DrawRevealModal";
-import type { PlayerSummary, Room, RoundPhase } from "../types/game";
+import type {
+  EventChoice,
+  EventDirection,
+  PlayerSummary,
+  Room,
+  RoundPhase,
+} from "../types/game";
 
 type GameScreenProps = {
   room: Room | null;
@@ -14,10 +20,11 @@ type GameScreenProps = {
   isBusy: boolean;
   canAct: boolean;
   matchingPositionId: number | null;
-  isEventResolutionPending: boolean;
+  isEventChoicePending: boolean;
+  eventChoice: EventChoice | null;
   onAct: () => void;
   onNextRound: () => void;
-  onResolveEvent: () => void;
+  onSubmitEventChoice: (direction: EventDirection) => void;
 };
 
 export const GameScreen = ({
@@ -28,10 +35,11 @@ export const GameScreen = ({
   isBusy,
   canAct,
   matchingPositionId,
-  isEventResolutionPending,
+  isEventChoicePending,
+  eventChoice,
   onAct,
   onNextRound,
-  onResolveEvent,
+  onSubmitEventChoice,
 }: GameScreenProps) => {
   void syncStatus;
   const isWaitingForNextRound =
@@ -63,8 +71,9 @@ export const GameScreen = ({
       : "";
   const isDrawRevealActive = drawPresentationKey !== "";
   const canActNow = canAct && !isDrawAnimating;
-  const isEventModalOpen = isEventResolutionPending && !isDrawAnimating;
-  const hasConfirmedEvent = currentPlayer?.hasConfirmedEvent ?? false;
+  const isEventModalOpen = isEventChoicePending && !isDrawAnimating;
+  const hasSubmittedEventChoice =
+    currentPlayer?.hasSubmittedEventChoice ?? false;
 
   const renderProgressButton = () => {
     if (isDrawAnimating) {
@@ -75,7 +84,7 @@ export const GameScreen = ({
       );
     }
 
-    if (isEventResolutionPending) {
+    if (isEventChoicePending) {
       return (
         <button type="button" className="secondary-button" disabled>
           イベント待機中
@@ -136,22 +145,36 @@ export const GameScreen = ({
     <main className="screen game-screen">
       {isEventModalOpen ? (
         <div className="modal-overlay">
-          <section className="title-modal event-modal" aria-modal="true" role="dialog">
+          <section
+            className="title-modal event-modal"
+            aria-modal="true"
+            role="dialog"
+          >
             <div className="modal-stack">
-              <h2>イベント発生</h2>
-              <p className="panel-copy">
-                全プレイヤーが確認すると、通常のラウンド進行に戻ります。
-              </p>
-              <button
-                type="button"
-                className={hasConfirmedEvent ? "secondary-button" : "primary-button"}
-                onClick={onResolveEvent}
-                disabled={isBusy || hasConfirmedEvent}
-              >
-                {hasConfirmedEvent
-                  ? "他プレイヤーの確認待ちです"
-                  : "イベントを実行"}
-              </button>
+              <h2>運命に抗え！</h2>
+              <p className="panel-copy">カードを一枚選んでください。</p>
+              {eventChoice ? (
+                <>
+                  <div className="event-choice-grid">
+                    {eventChoice.options.map((option) => (
+                      <button
+                        key={option.direction}
+                        type="button"
+                        className="primary-button event-choice-card"
+                        onClick={() => onSubmitEventChoice(option.direction)}
+                        disabled={isBusy || hasSubmittedEventChoice}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  {hasSubmittedEventChoice ? (
+                    <p className="panel-copy">他プレイヤーの提出待ちです。</p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="panel-copy">イベントカードを読み込んでいます。</p>
+              )}
             </div>
           </section>
         </div>

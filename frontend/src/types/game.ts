@@ -11,10 +11,11 @@ export type BingoCard = {
 
 export type SessionStatus = "waiting" | "in_progress" | "finished";
 export type SessionEndReason = null | "bingo" | "all_numbers_drawn";
+export type EventDirection = "clockwise" | "counterclockwise";
 export type RoundPhase =
   | "waiting_for_ready"
   | "waiting_for_host_start"
-  | "waiting_for_event_resolution"
+  | "waiting_for_event_choices"
   | "waiting_for_player_actions"
   | "waiting_for_host_next_round"
   | "finished";
@@ -29,11 +30,50 @@ export type PlayerSummary = {
   name: string;
   isReadyForStart: boolean;
   hasActedThisRound: boolean;
-  hasConfirmedEvent: boolean;
+  hasSubmittedEventChoice: boolean;
   card: BingoCard | null;
   openedPositionIds?: number[];
   bingoCount?: number;
   reachCount?: number;
+};
+
+export type EventChoiceOption = {
+  direction: EventDirection;
+  step: number;
+  label: string;
+};
+
+export type EventChoice = {
+  order: number;
+  from: number;
+  options: EventChoiceOption[];
+  hasSubmittedChoice: boolean;
+};
+
+export type ResolvedEventSegment = {
+  order: number;
+  playerId: string;
+  from: number;
+  to: number;
+  direction: EventDirection;
+  selectedStep: number;
+};
+
+export type CurrentEvent = {
+  startNumber: number;
+  goalNumber: number;
+  relayNumbers: number[];
+  segments: Array<{
+    order: number;
+    assignedPlayerId: string;
+    from: number;
+    to: number;
+    clockwiseStep: number;
+    counterClockwiseStep: number;
+    selectedDirection: EventDirection | null;
+    selectedStep: number | null;
+  }>;
+  resolvedTimeline: ResolvedEventSegment[];
 };
 
 export type GameSession = {
@@ -45,7 +85,7 @@ export type GameSession = {
   drawnNumbers: number[];
   eventGauge: number;
   eventGaugeMax: number;
-  eventTriggeredThisRound: boolean;
+  currentEvent: CurrentEvent | null;
   endReason: SessionEndReason;
   winners: string[];
   endCondition: SessionEndCondition;
@@ -55,7 +95,7 @@ export type GameSession = {
       card: BingoCard | null;
       isReadyForStart: boolean;
       hasActedThisRound: boolean;
-      hasConfirmedEvent: boolean;
+      hasSubmittedEventChoice: boolean;
     }
   >;
 };
@@ -73,6 +113,7 @@ export type ApiResponse = {
   room?: Room;
   player?: PlayerSummary;
   drawNumber?: number | null;
+  eventChoice?: EventChoice;
 };
 
 export type Screen = "title" | "room" | "game" | "result";

@@ -237,6 +237,18 @@ input {
   text-align: center;
 }
 
+.event-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.event-choice-card {
+  min-height: 88px;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
 .leave-modal-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
