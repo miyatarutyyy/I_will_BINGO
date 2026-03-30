@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { CSSProperties } from "react";
 
 import { BingoCardView } from "./BingoCardView";
@@ -14,8 +14,10 @@ type GameScreenProps = {
   isBusy: boolean;
   canAct: boolean;
   matchingPositionId: number | null;
+  isEventResolutionPending: boolean;
   onAct: () => void;
   onNextRound: () => void;
+  onResolveEvent: () => void;
 };
 
 export const GameScreen = ({
@@ -26,8 +28,10 @@ export const GameScreen = ({
   isBusy,
   canAct,
   matchingPositionId,
+  isEventResolutionPending,
   onAct,
   onNextRound,
+  onResolveEvent,
 }: GameScreenProps) => {
   void syncStatus;
   const isWaitingForNextRound =
@@ -35,10 +39,7 @@ export const GameScreen = ({
   const hasMatchingCell = matchingPositionId !== null;
   const bingoCount = currentPlayer?.bingoCount ?? 0;
   const reachCount = currentPlayer?.reachCount ?? 0;
-  const [activeDrawKey, setActiveDrawKey] = useState("");
-  const [isDrawRevealActive, setIsDrawRevealActive] = useState(false);
   const [isDrawAnimating, setIsDrawAnimating] = useState(false);
-  const lastPresentedDrawKeyRef = useRef("");
   const scoreBadgeClassName =
     bingoCount > 0
       ? "status-badge bingo"
@@ -56,31 +57,28 @@ export const GameScreen = ({
     "--gauge-progress": `${eventGaugeProgress}%`,
     "--gauge-progress-soft": `${eventGaugeProgress * 0.7}%`,
   } as CSSProperties;
-  const canActNow = canAct && !isDrawAnimating;
   const drawPresentationKey =
     room?.currentSession.status === "in_progress" && currentDrawnNumber !== null
       ? `${room.currentSession.id}:${room.currentSession.round}:${currentDrawnNumber}`
       : "";
-
-  useEffect(() => {
-    if (drawPresentationKey === "") {
-      setIsDrawRevealActive(false);
-      setIsDrawAnimating(false);
-      return;
-    }
-
-    if (drawPresentationKey === lastPresentedDrawKeyRef.current) return;
-
-    lastPresentedDrawKeyRef.current = drawPresentationKey;
-    setActiveDrawKey(drawPresentationKey);
-    setIsDrawRevealActive(true);
-  }, [drawPresentationKey]);
+  const isDrawRevealActive = drawPresentationKey !== "";
+  const canActNow = canAct && !isDrawAnimating;
+  const isEventModalOpen = isEventResolutionPending && !isDrawAnimating;
+  const hasConfirmedEvent = currentPlayer?.hasConfirmedEvent ?? false;
 
   const renderProgressButton = () => {
     if (isDrawAnimating) {
       return (
         <button type="button" className="secondary-button" disabled>
           抽選中
+        </button>
+      );
+    }
+
+    if (isEventResolutionPending) {
+      return (
+        <button type="button" className="secondary-button" disabled>
+          イベント待機中
         </button>
       );
     }
@@ -136,6 +134,29 @@ export const GameScreen = ({
 
   return (
     <main className="screen game-screen">
+      {isEventModalOpen ? (
+        <div className="modal-overlay">
+          <section className="title-modal event-modal" aria-modal="true" role="dialog">
+            <div className="modal-stack">
+              <h2>イベント発生</h2>
+              <p className="panel-copy">
+                全プレイヤーが確認すると、通常のラウンド進行に戻ります。
+              </p>
+              <button
+                type="button"
+                className={hasConfirmedEvent ? "secondary-button" : "primary-button"}
+                onClick={onResolveEvent}
+                disabled={isBusy || hasConfirmedEvent}
+              >
+                {hasConfirmedEvent
+                  ? "他プレイヤーの確認待ちです"
+                  : "イベントを実行"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       <section className="game-topbar">
         <div className="current-number-card">
           <div
@@ -144,7 +165,8 @@ export const GameScreen = ({
           >
             <div className="number-gauge-core">
               <DrawRevealModal
-                animationKey={activeDrawKey}
+                key={drawPresentationKey || "idle"}
+                animationKey={drawPresentationKey}
                 isOpen={isDrawRevealActive}
                 targetNumber={currentDrawnNumber}
                 onAnimationStateChange={setIsDrawAnimating}

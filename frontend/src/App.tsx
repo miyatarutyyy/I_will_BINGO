@@ -93,6 +93,9 @@ const App = () => {
     room.currentSession.phase === "waiting_for_player_actions" &&
     currentPlayer !== null &&
     !currentPlayer.hasActedThisRound;
+  const isEventResolutionPending =
+    room?.currentSession.status === "in_progress" &&
+    room.currentSession.phase === "waiting_for_event_resolution";
   const winners =
     room?.players.filter((player) =>
       room.currentSession.winners.includes(player.id),
@@ -606,6 +609,42 @@ const App = () => {
     }
   };
 
+  const handleResolveEvent = async () => {
+    if (!room || !isEventResolutionPending || !currentPlayer) return;
+
+    setIsBusy(true);
+    setNotice("");
+
+    try {
+      const payload = await handleApiRequest(
+        `/rooms/${room.id}/session/resolve-event`,
+        {
+          method: "POST",
+          body: JSON.stringify({ playerId }),
+        },
+      );
+
+      if (!payload.room) {
+        throw new Error("イベント確認レスポンスが不正です。");
+      }
+
+      await syncRoom(payload.room);
+      setNotice(
+        payload.room.currentSession.phase === "waiting_for_event_resolution"
+          ? "イベント確認を送信しました。"
+          : "イベントが完了し、ゲーム進行へ戻りました。",
+      );
+      setNoticeTone("success");
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "イベント確認に失敗しました。",
+      );
+      setNoticeTone("error");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   const handleReturnToTitle = () => {
     setRoom(null);
     setPlayerId("");
@@ -736,8 +775,10 @@ const App = () => {
           isBusy={isBusy}
           canAct={canAct}
           matchingPositionId={matchingCell?.positionId ?? null}
+          isEventResolutionPending={Boolean(isEventResolutionPending)}
           onAct={() => void handleAct()}
           onNextRound={() => void handleNextRound()}
+          onResolveEvent={() => void handleResolveEvent()}
         />
       )}
 

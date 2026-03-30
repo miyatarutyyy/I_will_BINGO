@@ -14,6 +14,7 @@ export type SessionEndReason = null | "bingo" | "all_numbers_drawn";
 export type RoundPhase =
   | "waiting_for_ready"
   | "waiting_for_host_start"
+  | "waiting_for_event_resolution"
   | "waiting_for_player_actions"
   | "waiting_for_host_next_round"
   | "finished";
@@ -28,6 +29,7 @@ export type PlayerSummary = {
   name: string;
   isReadyForStart: boolean;
   hasActedThisRound: boolean;
+  hasConfirmedEvent: boolean;
   card: BingoCard | null;
   openedPositionIds?: number[];
   bingoCount?: number;
@@ -53,6 +55,7 @@ export type GameSession = {
       card: BingoCard | null;
       isReadyForStart: boolean;
       hasActedThisRound: boolean;
+      hasConfirmedEvent: boolean;
     }
   >;
 };

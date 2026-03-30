@@ -86,6 +86,8 @@ export const getPhaseLabel = (phase: RoundPhase) => {
       return "準備中";
     case "waiting_for_host_start":
       return "開始待ち";
+    case "waiting_for_event_resolution":
+      return "イベント待ち";
     case "waiting_for_player_actions":
       return "アクション待ち";
     case "waiting_for_host_next_round":

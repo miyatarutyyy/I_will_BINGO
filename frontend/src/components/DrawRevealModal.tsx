@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const MAX_BINGO_NUMBER = 75;
 const FAST_SPIN_STEPS = 16;
@@ -52,32 +52,28 @@ export const DrawRevealModal = ({
   targetNumber,
   onAnimationStateChange,
 }: DrawRevealModalProps) => {
-  const [sequence, setSequence] = useState<number[]>([]);
+  const sequence = useMemo(() => {
+    if (targetNumber === null) return [];
+    return isOpen ? buildSpinSequence(targetNumber) : [targetNumber];
+  }, [isOpen, targetNumber]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isSettled, setIsSettled] = useState(false);
+  const [isSettled, setIsSettled] = useState(!isOpen);
 
   useEffect(() => {
-    if (targetNumber === null) return;
-
     if (!isOpen) {
-      setSequence([targetNumber]);
-      setCurrentIndex(0);
-      setIsSettled(true);
       onAnimationStateChange?.(false);
       return;
     }
 
-    const nextSequence = buildSpinSequence(targetNumber);
+    if (targetNumber === null) return;
+
     const timeoutIds: number[] = [];
 
-    setSequence(nextSequence);
-    setCurrentIndex(0);
-    setIsSettled(false);
     onAnimationStateChange?.(true);
 
     let elapsed = 0;
 
-    for (let stepIndex = 1; stepIndex < nextSequence.length; stepIndex += 1) {
+    for (let stepIndex = 1; stepIndex < sequence.length; stepIndex += 1) {
       elapsed += getStepDelay(stepIndex);
       timeoutIds.push(
         window.setTimeout(() => {
@@ -98,7 +94,7 @@ export const DrawRevealModal = ({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [animationKey, isOpen, onAnimationStateChange, targetNumber]);
+  }, [isOpen, onAnimationStateChange, sequence, targetNumber]);
 
   if (!isOpen || targetNumber === null) return null;
 
