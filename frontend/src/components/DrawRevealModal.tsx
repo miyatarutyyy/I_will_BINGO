@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 
 const MAX_BINGO_NUMBER = 75;
 const FAST_SPIN_STEPS = 16;
@@ -21,13 +22,12 @@ const buildSpinSequence = (targetNumber: number) => {
   return sequence;
 };
 
-const getStepDelay = (stepIndex: number) => {
-  if (stepIndex <= FAST_SPIN_STEPS) {
-    return 84;
-  }
+const getReelDurationMs = (trackLength: number) => {
+  const movementSteps = Math.max(1, trackLength - 1);
+  const distanceWeight = Math.min(1, movementSteps / 10);
+  const baseDuration = 560 + (1 - distanceWeight) ** 2 * 260;
 
-  const slowdownIndex = stepIndex - FAST_SPIN_STEPS;
-  return 115 + slowdownIndex * 35;
+  return Math.round(baseDuration + movementSteps * 72);
 };
 
 type DrawRevealModalProps = {
@@ -47,45 +47,52 @@ export const DrawRevealModal = ({
     if (targetNumber === null) return [];
     return isOpen ? buildSpinSequence(targetNumber) : [targetNumber];
   }, [isOpen, targetNumber]);
+  const transitionDurationMs = useMemo(
+    () => getReelDurationMs(sequence.length),
+    [sequence.length],
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isSettled, setIsSettled] = useState(!isOpen);
 
   useEffect(() => {
     if (!isOpen) {
+      setCurrentIndex(0);
+      setIsSettled(true);
       onAnimationStateChange?.(false);
       return;
     }
 
     if (targetNumber === null) return;
 
-    const timeoutIds: number[] = [];
-
+    let animationFrameId = 0;
+    let nestedAnimationFrameId = 0;
     onAnimationStateChange?.(true);
+    setCurrentIndex(0);
+    setIsSettled(false);
 
-    let elapsed = 0;
+    animationFrameId = window.requestAnimationFrame(() => {
+      nestedAnimationFrameId = window.requestAnimationFrame(() => {
+        setCurrentIndex(Math.max(0, sequence.length - 1));
+      });
+    });
 
-    for (let stepIndex = 1; stepIndex < sequence.length; stepIndex += 1) {
-      elapsed += getStepDelay(stepIndex);
-      timeoutIds.push(
-        window.setTimeout(() => {
-          setCurrentIndex(stepIndex);
-        }, elapsed),
-      );
-    }
-
-    timeoutIds.push(
-      window.setTimeout(() => {
-        setIsSettled(true);
-        onAnimationStateChange?.(false);
-      }, elapsed + 80),
-    );
+    const timeoutId = window.setTimeout(() => {
+      setIsSettled(true);
+      onAnimationStateChange?.(false);
+    }, transitionDurationMs + 80);
 
     return () => {
-      for (const timeoutId of timeoutIds) {
-        window.clearTimeout(timeoutId);
-      }
+      window.cancelAnimationFrame(animationFrameId);
+      window.cancelAnimationFrame(nestedAnimationFrameId);
+      window.clearTimeout(timeoutId);
     };
-  }, [isOpen, onAnimationStateChange, sequence, targetNumber]);
+  }, [
+    isOpen,
+    onAnimationStateChange,
+    sequence.length,
+    targetNumber,
+    transitionDurationMs,
+  ]);
 
   if (!isOpen || targetNumber === null) return null;
 
@@ -101,10 +108,11 @@ export const DrawRevealModal = ({
       <div className="draw-reel-fade draw-reel-fade-bottom" />
       <div className="draw-reel-window">
         <div
-          className="draw-reel-track"
+          className={`draw-reel-track ${isSettled ? "is-settled" : "is-spinning"}`}
           style={{
+            "--draw-reel-duration": `${transitionDurationMs}ms`,
             transform: `translateY(calc(-${currentIndex} * var(--draw-slot-height)))`,
-          }}
+          } as CSSProperties}
         >
           {reelValues.map((value, index) => (
             <div

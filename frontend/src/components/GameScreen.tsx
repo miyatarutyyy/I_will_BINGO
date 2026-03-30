@@ -58,6 +58,14 @@ const buildEventTrackValues = (
   return values;
 };
 
+const getEventTrackDurationMs = (trackLength: number) => {
+  const movementSteps = Math.max(1, trackLength - 1);
+  const distanceWeight = Math.min(1, movementSteps / 8);
+  const baseDuration = 440 + (1 - distanceWeight) ** 2 * 280;
+
+  return Math.round(baseDuration + movementSteps * 55);
+};
+
 export const GameScreen = ({
   room,
   currentPlayer,
@@ -92,6 +100,7 @@ export const GameScreen = ({
   const [eventTransition, setEventTransition] = useState<{
     key: string;
     direction: EventDirection;
+    durationMs: number;
     values: number[];
   } | null>(null);
   const previousDrawAnimatingRef = useRef(false);
@@ -274,6 +283,12 @@ export const GameScreen = ({
         segment.selectedStep > 0
           ? `+${segment.selectedStep}`
           : `${segment.selectedStep}`;
+      const segmentValues = buildEventTrackValues(
+        segment.from,
+        segment.to,
+        segment.direction,
+      );
+      const durationMs = getEventTrackDurationMs(segmentValues.length);
 
       timeoutIds.push(
         window.setTimeout(() => {
@@ -285,24 +300,19 @@ export const GameScreen = ({
 
       timeoutIds.push(
         window.setTimeout(() => {
-          const values = buildEventTrackValues(
-            segment.from,
-            segment.to,
-            segment.direction,
-          );
-
           setEventTransition({
             key: `${resolvedEventAnimationId}:${segment.order}`,
             direction: segment.direction,
+            durationMs,
             values:
               segment.direction === "counterclockwise"
-                ? [...values].reverse()
-                : values,
+                ? [...segmentValues].reverse()
+                : segmentValues,
           });
         }, elapsed),
       );
 
-      elapsed += 760;
+      elapsed += durationMs;
 
       timeoutIds.push(
         window.setTimeout(() => {
@@ -339,6 +349,7 @@ export const GameScreen = ({
     return {
       "--event-track-length": `${trackLength}`,
       "--event-track-end": `${((trackLength - 1) / trackLength) * 100}%`,
+      "--event-track-duration": `${eventTransition.durationMs}ms`,
     } as CSSProperties;
   }, [eventTransition]);
   const visibleNumber =

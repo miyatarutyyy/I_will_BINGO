@@ -423,12 +423,16 @@ input {
 }
 
 .draw-reel-track {
-  transition: transform 110ms cubic-bezier(0.2, 0.9, 0.25, 1);
   will-change: transform;
 }
 
-.draw-reel-shell.is-settled .draw-reel-track {
-  transition-duration: 260ms;
+.draw-reel-track.is-spinning {
+  transition: transform var(--draw-reel-duration, 1800ms)
+    cubic-bezier(0.12, 0.84, 0.22, 1);
+}
+
+.draw-reel-track.is-settled {
+  transition: none;
 }
 
 .draw-reel-value {
@@ -910,11 +914,15 @@ input {
 }
 
 .event-number-track.is-forward {
-  animation: slide-number-forward 620ms cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
+  animation:
+    slide-number-forward var(--event-track-duration, 620ms)
+    cubic-bezier(0.14, 0.88, 0.24, 1) forwards;
 }
 
 .event-number-track.is-backward {
-  animation: slide-number-backward 620ms cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
+  animation:
+    slide-number-backward var(--event-track-duration, 620ms)
+    cubic-bezier(0.14, 0.88, 0.24, 1) forwards;
 }
 
 .event-number-value {
