@@ -122,6 +122,8 @@ export const GameScreen = ({
   const isResolvedEventReady = resolvedEventAnimationId !== "";
   const isDrawRevealActive =
     drawPresentationKey !== "" && !isResolvedEventReady;
+  const isDrawPresentationPending =
+    isDrawRevealActive && completedDrawPresentationKey !== drawPresentationKey;
   const canActNow = canAct && !isDrawAnimating && !isEventAnimating;
   const isEventModalOpen =
     isEventChoicePending &&
@@ -294,9 +296,7 @@ export const GameScreen = ({
     ) ?? null;
 
   const renderProgressButton = () => {
-    console.log("抽選中before");
-    if (isDrawAnimating) {
-      console.log("抽選中before");
+    if (isDrawPresentationPending || isDrawAnimating) {
       return (
         <button type="button" className="secondary-button" disabled>
           抽選中
