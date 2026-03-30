@@ -112,6 +112,8 @@ const App = () => {
   const shouldShowNotice =
     notice !== "" &&
     (noticeTone !== "success" || notice === "ルームIDをコピーしました。");
+  const shouldWarnOnPageExit =
+    room !== null || pendingRoomDraft !== null || isBootstrapping;
 
   useEffect(() => {
     writeStoredValue(STORAGE_KEYS.playerName, playerName);
@@ -137,6 +139,54 @@ const App = () => {
       window.clearTimeout(timeoutId);
     };
   }, [notice]);
+
+  useEffect(() => {
+    if (!shouldWarnOnPageExit) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [shouldWarnOnPageExit]);
+
+  useEffect(() => {
+    if (!shouldWarnOnPageExit) return;
+
+    const historyState = window.history.state as
+      | { iwillbingoGuard?: boolean }
+      | null;
+
+    if (!historyState?.iwillbingoGuard) {
+      window.history.pushState(
+        { iwillbingoGuard: true },
+        "",
+        window.location.href,
+      );
+    }
+
+    const handlePopState = () => {
+      window.alert(
+        "この画面ではブラウザバックに対応していません。画面内の操作で戻ってください。",
+      );
+      window.history.pushState(
+        { iwillbingoGuard: true },
+        "",
+        window.location.href,
+      );
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [shouldWarnOnPageExit]);
 
   useEffect(() => {
     const storedRoomId = readStoredValue(STORAGE_KEYS.roomId);
