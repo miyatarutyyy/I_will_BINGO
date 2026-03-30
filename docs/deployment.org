@@ -1,0 +1,107 @@
+* 公開手順メモ
+
+このプロジェクトは現状、次の構成で一旦公開できます。
+
+- frontend: 静的ホスティング
+- backend: Node.js 常駐ホスティング
+- 通信方式: HTTP API + SSE
+
+無料または低コストで始めるなら、次の組み合わせが現実的です。
+
+- frontend: Vercel / Netlify / Cloudflare Pages
+- backend: Render / Railway / Fly.io
+
+* 1. 現在の制約
+
+この backend はインメモリでルーム状態を保持しています。
+そのため、次の制約があります。
+
+- サーバー再起動でルームが消える
+- 複数インスタンスへ水平分散できない
+- 認証がないため、=playerId= を知っていればそのプレイヤーとして操作できる
+
+一旦公開して遊ぶ用途なら成立しますが、本番常用には未対応です。
+
+* 2. backend 公開
+
+** 2.1 必要な環境変数
+
+- =PORT=: ホスティング側が自動注入する値を使用
+- =CORS_ORIGIN=: frontend の公開 URL
+
+例:
+
+#+begin_example
+CORS_ORIGIN=https://your-frontend-domain.example
+#+end_example
+
+複数許可したい場合はカンマ区切りで指定します。
+
+#+begin_example
+CORS_ORIGIN=https://your-frontend-domain.example,https://www.your-frontend-domain.example
+#+end_example
+
+** 2.2 Render の例
+
+- Root Directory: =backend=
+- Build Command: =npm install=
+- Start Command: =npm start=
+
+ヘルスチェック URL は次を使えます。
+
+- =/health=
+
+* 3. frontend 公開
+
+** 3.1 必要な環境変数
+
+- =VITE_API_BASE_URL=: backend の公開 URL
+
+例:
+
+#+begin_example
+VITE_API_BASE_URL=https://your-backend-domain.example
+#+end_example
+
+** 3.2 Vercel の例
+
+- Root Directory: =frontend=
+- Build Command: =npm run build=
+- Output Directory: =dist=
+
+* 4. 最低限の公開フロー
+
+1. backend を Render などへ公開する
+2. backend の公開 URL を確認する
+3. frontend に =VITE_API_BASE_URL= を設定して再デプロイする
+4. backend に =CORS_ORIGIN= として frontend の公開 URL を設定する
+5. ブラウザからルーム作成、別端末から参加して SSE 同期を確認する
+
+* 5. 次に必要になること
+
+公開後に安定運用したいなら、次の順で進めるのが妥当です。
+
+1. Redis か DB にルーム状態を保存する
+2. 認証または署名付きセッションを入れる
+3. 独自ドメインと HTTPS を固定する
+4. 監視とログ収集を入れる
+
+* 6. このリポジトリでのローカル確認
+
+backend:
+
+#+begin_example
+cd backend
+cp .env.example .env
+npm install
+npm start
+#+end_example
+
+frontend:
+
+#+begin_example
+cd frontend
+cp .env.example .env
+npm install
+npm run build
+#+end_example
