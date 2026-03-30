@@ -26,6 +26,7 @@ import {
   buildEventChoiceOptions,
   buildResolvedTimeline,
   createEventState,
+  createResolvedEventAnimationId,
   getPlayerEventSegment,
   resolveEventSegmentChoice,
 } from "../services/session-event.js";
@@ -650,6 +651,8 @@ roomsRouter.post("/rooms/:roomId/session/event-choice", (req, res) => {
   playerState.hasSubmittedEventChoice = true;
 
   if (haveAllPlayersSubmittedEventChoice(room)) {
+    room.currentSession.currentEvent.animationId =
+      createResolvedEventAnimationId();
     room.currentSession.currentEvent.resolvedTimeline = buildResolvedTimeline(
       room.currentSession.currentEvent,
     );

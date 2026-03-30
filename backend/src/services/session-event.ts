@@ -21,6 +21,10 @@ const shuffle = <T>(items: T[]): T[] => {
   return nextItems;
 };
 
+const createAnimationId = (): string => {
+  return `event-animation-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export const getClockwiseStep = (from: number, to: number): number => {
   return (to - from + MAX_BINGO_NUMBER) % MAX_BINGO_NUMBER;
 };
@@ -95,10 +99,15 @@ export const createEventState = (params: {
   return {
     startNumber: params.startNumber,
     goalNumber,
+    animationId: null,
     relayNumbers,
     segments,
     resolvedTimeline: [],
   };
+};
+
+export const createResolvedEventAnimationId = (): string => {
+  return createAnimationId();
 };
 
 export const getPlayerEventSegment = (

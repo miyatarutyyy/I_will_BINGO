@@ -660,7 +660,6 @@ const App = () => {
         throw new Error("イベント選択レスポンスが不正です。");
       }
 
-      await syncRoom(payload.room);
       setNotice(
         payload.room.currentSession.phase === "waiting_for_event_choices"
           ? "イベントカードを送信しました。"

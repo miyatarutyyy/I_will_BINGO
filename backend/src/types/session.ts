@@ -54,6 +54,7 @@ export type ResolvedEventSegment = {
 export type EventState = {
   startNumber: number;
   goalNumber: number;
+  animationId: string | null;
   relayNumbers: number[];
   segments: EventSegment[];
   resolvedTimeline: ResolvedEventSegment[];

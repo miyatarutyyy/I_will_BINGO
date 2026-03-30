@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { BingoCardView } from "./BingoCardView";
@@ -48,6 +48,16 @@ export const GameScreen = ({
   const bingoCount = currentPlayer?.bingoCount ?? 0;
   const reachCount = currentPlayer?.reachCount ?? 0;
   const [isDrawAnimating, setIsDrawAnimating] = useState(false);
+  const [isEventAnimating, setIsEventAnimating] = useState(false);
+  const [eventStepLabel, setEventStepLabel] = useState<string | null>(null);
+  const [displayNumber, setDisplayNumber] = useState<number | null>(null);
+  const [eventTransition, setEventTransition] = useState<{
+    key: string;
+    from: number;
+    to: number;
+    direction: EventDirection;
+  } | null>(null);
+  const startedAnimationIdsRef = useRef(new Set<string>());
   const scoreBadgeClassName =
     bingoCount > 0
       ? "status-badge bingo"
@@ -55,6 +65,11 @@ export const GameScreen = ({
         ? "status-badge reach"
         : "status-badge neutral";
   const currentDrawnNumber = room?.currentSession.currentDrawnNumber ?? null;
+  const currentEvent = room?.currentSession.currentEvent ?? null;
+  const resolvedTimeline = useMemo(
+    () => currentEvent?.resolvedTimeline ?? [],
+    [currentEvent],
+  );
   const eventGauge = room?.currentSession.eventGauge ?? 0;
   const eventGaugeMax = room?.currentSession.eventGaugeMax ?? 0;
   const eventGaugeProgress =
@@ -69,17 +84,118 @@ export const GameScreen = ({
     room?.currentSession.status === "in_progress" && currentDrawnNumber !== null
       ? `${room.currentSession.id}:${room.currentSession.round}:${currentDrawnNumber}`
       : "";
-  const isDrawRevealActive = drawPresentationKey !== "";
-  const canActNow = canAct && !isDrawAnimating;
+  const resolvedEventAnimationId =
+    currentEvent?.animationId && resolvedTimeline.length > 0
+      ? currentEvent.animationId
+      : "";
+  const isResolvedEventReady = resolvedEventAnimationId !== "";
+  const isDrawRevealActive = drawPresentationKey !== "" && !isResolvedEventReady;
+  const canActNow = canAct && !isDrawAnimating && !isEventAnimating;
   const isEventModalOpen = isEventChoicePending && !isDrawAnimating;
   const hasSubmittedEventChoice =
     currentPlayer?.hasSubmittedEventChoice ?? false;
+
+  useEffect(() => {
+    if (!currentEvent || resolvedEventAnimationId === "") return;
+    if (startedAnimationIdsRef.current.has(resolvedEventAnimationId)) return;
+
+    const sortedTimeline = [...resolvedTimeline].sort(
+      (left, right) => left.order - right.order,
+    );
+    const timeoutIds: number[] = [];
+    let elapsed = 0;
+
+    timeoutIds.push(
+      window.setTimeout(() => {
+        startedAnimationIdsRef.current.add(resolvedEventAnimationId);
+        setIsEventAnimating(true);
+        setDisplayNumber(currentEvent.startNumber);
+        setEventStepLabel(null);
+        setEventTransition(null);
+      }, 0),
+    );
+
+    for (const segment of sortedTimeline) {
+      const stepLabel =
+        segment.selectedStep > 0
+          ? `+${segment.selectedStep}`
+          : `${segment.selectedStep}`;
+
+      timeoutIds.push(
+        window.setTimeout(() => {
+          setEventStepLabel(stepLabel);
+        }, elapsed),
+      );
+
+      elapsed += 520;
+
+      timeoutIds.push(
+        window.setTimeout(() => {
+          setEventTransition({
+            key: `${resolvedEventAnimationId}:${segment.order}`,
+            from: segment.from,
+            to: segment.to,
+            direction: segment.direction,
+          });
+        }, elapsed),
+      );
+
+      elapsed += 760;
+
+      timeoutIds.push(
+        window.setTimeout(() => {
+          setDisplayNumber(segment.to);
+          setEventTransition(null);
+          setEventStepLabel(null);
+        }, elapsed),
+      );
+
+      elapsed += 180;
+    }
+
+    timeoutIds.push(
+      window.setTimeout(() => {
+        setDisplayNumber(currentEvent.goalNumber);
+        setEventTransition(null);
+        setEventStepLabel(null);
+        setIsEventAnimating(false);
+      }, elapsed),
+    );
+
+    return () => {
+      for (const timeoutId of timeoutIds) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [currentEvent, resolvedEventAnimationId, resolvedTimeline]);
+
+  const animatedTrackValues = useMemo(() => {
+    if (!eventTransition) return null;
+
+    if (eventTransition.direction === "clockwise") {
+      return [eventTransition.from, eventTransition.to];
+    }
+
+    return [eventTransition.to, eventTransition.from];
+  }, [eventTransition]);
+  const visibleNumber =
+    isResolvedEventReady || isEventAnimating
+      ? (displayNumber ?? currentEvent?.startNumber ?? currentDrawnNumber)
+      : currentDrawnNumber;
 
   const renderProgressButton = () => {
     if (isDrawAnimating) {
       return (
         <button type="button" className="secondary-button" disabled>
           抽選中
+        </button>
+      );
+    }
+
+    if (isEventAnimating) {
+      return (
+        <button type="button" className="secondary-button" disabled>
+          運命改変中
         </button>
       );
     }
@@ -182,19 +298,60 @@ export const GameScreen = ({
 
       <section className="game-topbar">
         <div className="current-number-card">
-          <div
-            className={`number-gauge-orb ${eventGauge <= 0 ? "is-empty" : ""}`}
-            style={numberGaugeStyle}
-          >
-            <div className="number-gauge-core">
-              <DrawRevealModal
-                key={drawPresentationKey || "idle"}
-                animationKey={drawPresentationKey}
-                isOpen={isDrawRevealActive}
-                targetNumber={currentDrawnNumber}
-                onAnimationStateChange={setIsDrawAnimating}
-              />
+          <div className="number-gauge-row">
+            <div
+              className={`number-gauge-orb ${eventGauge <= 0 ? "is-empty" : ""}`}
+              style={numberGaugeStyle}
+            >
+              <div className="number-gauge-core">
+                {isResolvedEventReady ? (
+                  <div className="event-draw-stage">
+                    <div className="event-number-window">
+                      {eventTransition && animatedTrackValues ? (
+                        <div
+                          key={eventTransition.key}
+                          className={`event-number-track ${
+                            eventTransition.direction === "clockwise"
+                              ? "is-forward"
+                              : "is-backward"
+                          }`}
+                        >
+                          {animatedTrackValues.map((value, index) => (
+                            <div
+                              key={`${eventTransition.key}:${value}:${index}`}
+                              className={`event-number-value ${
+                                value === displayNumber ? "is-origin" : "is-target"
+                              }`}
+                            >
+                              {value}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="event-number-static">
+                          {visibleNumber}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <DrawRevealModal
+                    key={drawPresentationKey || "idle"}
+                    animationKey={drawPresentationKey}
+                    isOpen={isDrawRevealActive}
+                    targetNumber={currentDrawnNumber}
+                    onAnimationStateChange={setIsDrawAnimating}
+                  />
+                )}
+              </div>
             </div>
+
+            {isEventAnimating && eventStepLabel ? (
+              <div className="event-step-indicator" aria-live="polite">
+                <span className="event-step-label">Move</span>
+                <strong>{eventStepLabel}</strong>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
@@ -216,7 +373,7 @@ export const GameScreen = ({
             card={currentPlayer?.card ?? null}
             interactive={canActNow}
             matchingPositionId={matchingPositionId}
-            isBusy={isBusy || isDrawAnimating}
+            isBusy={isBusy || isDrawAnimating || isEventAnimating}
             onAct={onAct}
           />
           {

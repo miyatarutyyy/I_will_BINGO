@@ -62,6 +62,7 @@ export type ResolvedEventSegment = {
 export type CurrentEvent = {
   startNumber: number;
   goalNumber: number;
+  animationId: string | null;
   relayNumbers: number[];
   segments: Array<{
     order: number;
