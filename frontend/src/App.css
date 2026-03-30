@@ -313,6 +313,73 @@ input {
   max-width: 320px;
 }
 
+.transient-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.12),
+      transparent 58%
+    ),
+    rgba(236, 239, 241, 0.52);
+  backdrop-filter: blur(8px);
+}
+
+.transient-overlay-card {
+  min-width: min(520px, 100%);
+  padding: 34px 40px;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  border-radius: 32px;
+  border: 1px solid rgba(144, 164, 174, 0.24);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 24px 60px rgba(69, 90, 100, 0.18);
+  animation: transient-overlay-pop 1.4s ease both;
+}
+
+.transient-overlay-card strong {
+  font-family: Impact, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(3rem, 11vw, 5.8rem);
+  line-height: 0.9;
+  letter-spacing: 0.08em;
+  color: #263238;
+}
+
+.transient-overlay-card span {
+  color: #607d8b;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+}
+
+@keyframes transient-overlay-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  18% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  82% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
 .leave-modal-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -27,6 +27,11 @@ type GameScreenProps = {
   onSubmitEventChoice: (direction: EventDirection) => void;
 };
 
+type TransientOverlay = null | {
+  kind: "session_start";
+  key: string;
+};
+
 const MAX_BINGO_NUMBER = 75;
 
 const getNextEventValue = (value: number, direction: EventDirection) => {
@@ -82,6 +87,8 @@ export const GameScreen = ({
   const [showEventModalDetails, setShowEventModalDetails] = useState(false);
   const [selectedEventDirection, setSelectedEventDirection] =
     useState<EventDirection | null>(null);
+  const [transientOverlay, setTransientOverlay] =
+    useState<TransientOverlay>(null);
   const [eventTransition, setEventTransition] = useState<{
     key: string;
     values: number[];
@@ -89,6 +96,7 @@ export const GameScreen = ({
   const previousDrawAnimatingRef = useRef(false);
   const lastDrawPresentationKeyRef = useRef("");
   const startedAnimationIdsRef = useRef(new Set<string>());
+  const shownOverlayKeysRef = useRef(new Set<string>());
   const scoreBadgeClassName =
     bingoCount > 0
       ? "status-badge bingo"
@@ -115,22 +123,64 @@ export const GameScreen = ({
     room?.currentSession.status === "in_progress" && currentDrawnNumber !== null
       ? `${room.currentSession.id}:${room.currentSession.round}:${currentDrawnNumber}`
       : "";
+  const sessionStartOverlayKey =
+    room?.currentSession.status === "in_progress"
+      ? `session_start:${room.currentSession.id}`
+      : "";
   const resolvedEventAnimationId =
     currentEvent?.animationId && resolvedTimeline.length > 0
       ? currentEvent.animationId
       : "";
   const isResolvedEventReady = resolvedEventAnimationId !== "";
+  const isSessionStartOverlayVisible =
+    transientOverlay?.kind === "session_start";
   const isDrawRevealActive =
-    drawPresentationKey !== "" && !isResolvedEventReady;
+    drawPresentationKey !== "" &&
+    !isResolvedEventReady &&
+    !isSessionStartOverlayVisible;
   const isDrawPresentationPending =
     isDrawRevealActive && completedDrawPresentationKey !== drawPresentationKey;
-  const canActNow = canAct && !isDrawAnimating && !isEventAnimating;
+  const canActNow =
+    canAct &&
+    !isDrawAnimating &&
+    !isEventAnimating &&
+    !isSessionStartOverlayVisible;
   const isEventModalOpen =
     isEventChoicePending &&
     !isDrawAnimating &&
+    !isSessionStartOverlayVisible &&
     completedDrawPresentationKey === drawPresentationKey;
   const hasSubmittedEventChoice =
     currentPlayer?.hasSubmittedEventChoice ?? false;
+
+  useEffect(() => {
+    if (
+      sessionStartOverlayKey === "" ||
+      shownOverlayKeysRef.current.has(sessionStartOverlayKey)
+    ) {
+      return;
+    }
+
+    shownOverlayKeysRef.current.add(sessionStartOverlayKey);
+    setTransientOverlay({
+      kind: "session_start",
+      key: sessionStartOverlayKey,
+    });
+  }, [sessionStartOverlayKey]);
+
+  useEffect(() => {
+    if (!transientOverlay) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setTransientOverlay((currentOverlay) =>
+        currentOverlay?.key === transientOverlay.key ? null : currentOverlay,
+      );
+    }, 1400);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [transientOverlay]);
 
   useEffect(() => {
     if (drawPresentationKey === "") {
@@ -296,6 +346,14 @@ export const GameScreen = ({
     ) ?? null;
 
   const renderProgressButton = () => {
+    if (isSessionStartOverlayVisible) {
+      return (
+        <button type="button" className="secondary-button" disabled>
+          ビンゴスタート
+        </button>
+      );
+    }
+
     if (isDrawPresentationPending || isDrawAnimating) {
       return (
         <button type="button" className="secondary-button" disabled>
@@ -371,6 +429,18 @@ export const GameScreen = ({
 
   return (
     <main className="screen game-screen">
+      {isSessionStartOverlayVisible ? (
+        <div
+          className="transient-overlay"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <div className="transient-overlay-card">
+            <h2>ビンゴスタート</h2>
+          </div>
+        </div>
+      ) : null}
+
       {isEventModalOpen ? (
         <div className="modal-overlay">
           <section
@@ -522,7 +592,12 @@ export const GameScreen = ({
             card={currentPlayer?.card ?? null}
             interactive={canActNow}
             matchingPositionId={matchingPositionId}
-            isBusy={isBusy || isDrawAnimating || isEventAnimating}
+            isBusy={
+              isBusy ||
+              isDrawAnimating ||
+              isEventAnimating ||
+              isSessionStartOverlayVisible
+            }
             onAct={onAct}
           />
           {
