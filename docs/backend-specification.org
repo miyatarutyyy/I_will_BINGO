@@ -12,6 +12,7 @@
 | 2026-03-27 | 初版作成。=backend/= の現行実装をもとに API、状態遷移、データ構造、SSE 配信仕様を整理した。 |
 | 2026-03-27 | 退室仕様を追加。=POST /rooms/:roomId/leave=、ホスト退室時の =room_closed= SSE、進行中退室禁止、プレイヤー配列からの削除処理を反映した。 |
 | 2026-03-30 | 共有イベントゲージの初期実装を反映。=GameSession.eventGauge= / =eventGaugeMax= / =eventTriggeredThisRound= を追加し、セッション開始時の最大値固定、通常マス開封時のみのゲージ加算、API / SSE レスポンスへの反映を追記した。 |
+| 2026-03-30 | 共有イベント確認フローを追加。=waiting_for_event_resolution= フェーズ、=PlayerSessionState.hasConfirmedEvent=、=POST /rooms/:roomId/session/resolve-event=、全員確認後のゲージリセットを反映した。 |
 
 * 1. 目的と役割
 
@@ -105,6 +106,7 @@
 - =card=: ビンゴカード。未作成時は =null=
 - =isReadyForStart=: 開始準備完了フラグ
 - =hasActedThisRound=: そのラウンドで操作済みか
+- =hasConfirmedEvent=: そのラウンドで共有イベント確認済みか
 
 共有イベントゲージはプレイヤー個別ではなく =GameSession= 側に保持します。
 
@@ -179,6 +181,7 @@ FREE マスはカード生成時には開かれません。
 
 - =waiting_for_ready=: カード作成と ready を受け付ける
 - =waiting_for_host_start=: 全員 ready 後、ホスト開始待ち
+- =waiting_for_event_resolution=: 抽選後に共有イベント確認待ち
 - =waiting_for_player_actions=: 各プレイヤーの act 待ち
 - =waiting_for_host_next_round=: 全員 act 後、ホストの次ラウンド待ち
 - =finished=: セッション終了
@@ -200,7 +203,12 @@ in_progress / waiting_for_player_actions
        └─ 未達なら waiting_for_host_next_round へ
 
 in_progress / waiting_for_host_next_round
-  └─ ホストが next-round で waiting_for_player_actions へ
+  └─ ホストが next-round で
+       ├─ イベント条件未達なら waiting_for_player_actions へ
+       └─ イベント条件達成なら waiting_for_event_resolution へ
+
+in_progress / waiting_for_event_resolution
+  └─ 全プレイヤーが resolve-event で waiting_for_player_actions へ
 
 finished / finished
 #+end_example
@@ -258,6 +266,8 @@ finished / finished
 - 保持場所は =GameSession=
 - 通常マスを新しく 1 つ開いたときだけ =+10=
 - スキップ時は増加しない
+- ゲージが最大値以上の状態で次ラウンドが開始されると、そのラウンドはまず共有イベント確認フェーズへ入る
+- 全プレイヤーが =resolve-event= を完了した時点で =eventGauge= を =0= にリセットする
 - FREE マスの初期開封は加算対象外
 - =eventGaugeMax = 30 * セッション開始時の参加人数=
 - =eventGaugeMax= はセッション開始時に一度だけ確定し、進行中は再計算しない
