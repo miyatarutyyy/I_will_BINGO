@@ -20,7 +20,7 @@ export const buildPlayerResponse = (room: Room, player: Player) => {
       name: player.name,
       isReadyForStart: playerState.isReadyForStart,
       hasActedThisRound: playerState.hasActedThisRound,
-      hasConfirmedEvent: playerState.hasConfirmedEvent,
+      hasSubmittedEventChoice: playerState.hasSubmittedEventChoice,
       card: null,
     };
   }
@@ -30,7 +30,7 @@ export const buildPlayerResponse = (room: Room, player: Player) => {
     name: player.name,
     isReadyForStart: playerState.isReadyForStart,
     hasActedThisRound: playerState.hasActedThisRound,
-    hasConfirmedEvent: playerState.hasConfirmedEvent,
+    hasSubmittedEventChoice: playerState.hasSubmittedEventChoice,
     ...buildCardSummary(playerState.card),
   };
 };

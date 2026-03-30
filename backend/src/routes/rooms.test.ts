@@ -57,10 +57,20 @@ const moveToNextRound = async (roomId: string, playerId: string) => {
     .send({ playerId });
 };
 
-const resolveEvent = async (roomId: string, playerId: string) => {
+const getEventChoice = async (roomId: string, playerId: string) => {
   return request(app)
-    .post(`/rooms/${roomId}/session/resolve-event`)
-    .send({ playerId });
+    .get(`/rooms/${roomId}/session/event-choice`)
+    .query({ playerId });
+};
+
+const submitEventChoice = async (
+  roomId: string,
+  playerId: string,
+  direction: "clockwise" | "counterclockwise",
+) => {
+  return request(app)
+    .post(`/rooms/${roomId}/session/event-choice`)
+    .send({ playerId, direction });
 };
 
 describe.sequential("roomsRouter", () => {
@@ -307,7 +317,7 @@ describe.sequential("roomsRouter", () => {
     expect(secondActResponse.body.room.currentSession.eventGauge).toBe(10);
   });
 
-  it("イベントゲージ満タン後の次ラウンド開始でイベント待ちフェーズに入る", async () => {
+  it("イベントゲージ満タン後の次ラウンド開始でイベント選択フェーズに入る", async () => {
     const { roomId, hostPlayerId } = await createRoom();
     const { playerId: guestPlayerId } = await joinRoom(roomId);
 
@@ -331,22 +341,23 @@ describe.sequential("roomsRouter", () => {
 
     expect(nextRoundResponse.status).toBe(200);
     expect(nextRoundResponse.body.room.currentSession.phase).toBe(
-      "waiting_for_event_resolution",
+      "waiting_for_event_choices",
     );
-    expect(nextRoundResponse.body.room.currentSession.eventTriggeredThisRound).toBe(
-      true,
+    expect(nextRoundResponse.body.room.currentSession.currentEvent).not.toBeNull();
+    expect(nextRoundResponse.body.room.currentSession.currentDrawnNumber).toEqual(
+      expect.any(Number),
     );
 
     const players = nextRoundResponse.body.room.players as Array<{
-      hasConfirmedEvent: boolean;
+      hasSubmittedEventChoice: boolean;
     }>;
 
-    expect(players.every((player) => player.hasConfirmedEvent === false)).toBe(
-      true,
-    );
+    expect(
+      players.every((player) => player.hasSubmittedEventChoice === false),
+    ).toBe(true);
   });
 
-  it("全員がイベント確認するとゲージをリセットして通常進行へ戻る", async () => {
+  it("イベント選択 API で担当区間の2択を取得できる", async () => {
     const { roomId, hostPlayerId } = await createRoom();
     const { playerId: guestPlayerId } = await joinRoom(roomId);
 
@@ -366,27 +377,69 @@ describe.sequential("roomsRouter", () => {
     await actPlayer(roomId, hostPlayerId);
     await actPlayer(roomId, guestPlayerId);
     await moveToNextRound(roomId, hostPlayerId);
-    const eventGaugeBeforeResolve = room.currentSession.eventGauge;
 
-    const firstResolveResponse = await resolveEvent(roomId, hostPlayerId);
+    const choiceResponse = await getEventChoice(roomId, hostPlayerId);
 
-    expect(firstResolveResponse.status).toBe(200);
-    expect(firstResolveResponse.body.room.currentSession.phase).toBe(
-      "waiting_for_event_resolution",
+    expect(choiceResponse.status).toBe(200);
+    expect(choiceResponse.body.eventChoice.order).toEqual(expect.any(Number));
+    expect(choiceResponse.body.eventChoice.from).toEqual(expect.any(Number));
+    expect(choiceResponse.body.eventChoice.options).toHaveLength(2);
+    expect(choiceResponse.body.eventChoice.options[0].label).toMatch(/^[+-]\d+$/);
+    expect(choiceResponse.body.eventChoice.hasSubmittedChoice).toBe(false);
+  });
+
+  it("全員がイベント選択を提出するとゲージをリセットして通常進行へ戻る", async () => {
+    const { roomId, hostPlayerId } = await createRoom();
+    const { playerId: guestPlayerId } = await joinRoom(roomId);
+
+    await setupPlayer(roomId, hostPlayerId);
+    await setupPlayer(roomId, guestPlayerId);
+    await readyPlayer(roomId, hostPlayerId);
+    await readyPlayer(roomId, guestPlayerId);
+    await startSession(roomId, hostPlayerId);
+
+    const room = getRoom(roomId);
+    expect(room).not.toBeNull();
+
+    if (!room) return;
+
+    room.currentSession.eventGauge = room.currentSession.eventGaugeMax;
+
+    await actPlayer(roomId, hostPlayerId);
+    await actPlayer(roomId, guestPlayerId);
+    await moveToNextRound(roomId, hostPlayerId);
+    const eventGaugeBeforeSubmit = room.currentSession.eventGauge;
+
+    const firstSubmitResponse = await submitEventChoice(
+      roomId,
+      hostPlayerId,
+      "clockwise",
     );
-    expect(firstResolveResponse.body.room.currentSession.eventGauge).toBe(
-      eventGaugeBeforeResolve,
+
+    expect(firstSubmitResponse.status).toBe(200);
+    expect(firstSubmitResponse.body.room.currentSession.phase).toBe(
+      "waiting_for_event_choices",
+    );
+    expect(firstSubmitResponse.body.room.currentSession.eventGauge).toBe(
+      eventGaugeBeforeSubmit,
     );
 
-    const secondResolveResponse = await resolveEvent(roomId, guestPlayerId);
+    const secondSubmitResponse = await submitEventChoice(
+      roomId,
+      guestPlayerId,
+      "counterclockwise",
+    );
 
-    expect(secondResolveResponse.status).toBe(200);
-    expect(secondResolveResponse.body.room.currentSession.phase).toBe(
+    expect(secondSubmitResponse.status).toBe(200);
+    expect(secondSubmitResponse.body.room.currentSession.phase).toBe(
       "waiting_for_player_actions",
     );
-    expect(secondResolveResponse.body.room.currentSession.eventGauge).toBe(0);
-    expect(secondResolveResponse.body.room.currentSession.eventTriggeredThisRound).toBe(
-      false,
+    expect(secondSubmitResponse.body.room.currentSession.eventGauge).toBe(0);
+    expect(
+      secondSubmitResponse.body.room.currentSession.currentEvent.resolvedTimeline,
+    ).toHaveLength(2);
+    expect(secondSubmitResponse.body.room.currentSession.currentDrawnNumber).toBe(
+      secondSubmitResponse.body.room.currentSession.currentEvent.goalNumber,
     );
   });
 

@@ -19,9 +19,16 @@ import {
   createRoom,
   getPlayer,
   getPlayerState,
-  haveAllPlayersConfirmedEvent,
+  haveAllPlayersSubmittedEventChoice,
   haveAllPlayersActed,
 } from "../services/room-state.js";
+import {
+  buildEventChoiceOptions,
+  buildResolvedTimeline,
+  createEventState,
+  getPlayerEventSegment,
+  resolveEventSegmentChoice,
+} from "../services/session-event.js";
 import {
   buildPlayerResponse,
   buildRoomResponse,
@@ -61,6 +68,10 @@ const getRoomOr404 = (roomId: string, res: Response) => {
   return room;
 };
 
+const parseEventDirection = (value: unknown) => {
+  return value === "clockwise" || value === "counterclockwise" ? value : null;
+};
+
 const prepareNextRound = (room: NonNullable<ReturnType<typeof getRoom>>) => {
   const result = drawNumber({
     drawnNumbers: room.currentSession.drawnNumbers,
@@ -75,21 +86,30 @@ const prepareNextRound = (room: NonNullable<ReturnType<typeof getRoom>>) => {
   }
 
   room.currentSession.round += 1;
-  room.currentSession.currentDrawnNumber = result.drawnNumber;
-  room.currentSession.drawnNumbers = result.nextState.drawnNumbers;
 
   const shouldTriggerEvent =
     room.currentSession.eventGaugeMax > 0 &&
     room.currentSession.eventGauge >= room.currentSession.eventGaugeMax;
 
   room.currentSession.phase = shouldTriggerEvent
-    ? "waiting_for_event_resolution"
+    ? "waiting_for_event_choices"
     : "waiting_for_player_actions";
-  room.currentSession.eventTriggeredThisRound = shouldTriggerEvent;
+  room.currentSession.currentDrawnNumber = result.drawnNumber;
+  room.currentSession.currentEvent = shouldTriggerEvent
+    ? createEventState({
+        playerIds: room.players.map((player) => player.id),
+        decidedNumbers: room.currentSession.drawnNumbers,
+        startNumber: result.drawnNumber,
+      })
+    : null;
+
+  if (!shouldTriggerEvent) {
+    room.currentSession.drawnNumbers = result.nextState.drawnNumbers;
+  }
 
   room.players.forEach((player) => {
     room.currentSession.playerStates[player.id].hasActedThisRound = false;
-    room.currentSession.playerStates[player.id].hasConfirmedEvent = false;
+    room.currentSession.playerStates[player.id].hasSubmittedEventChoice = false;
   });
 
   return { drawnNumber: result.drawnNumber };
@@ -401,11 +421,11 @@ roomsRouter.post("/rooms/:roomId/session/start", (req, res) => {
   room.currentSession.drawnNumbers = result.nextState.drawnNumbers;
   room.currentSession.eventGauge = 0;
   room.currentSession.eventGaugeMax = calculateEventGaugeMax(room.players.length);
-  room.currentSession.eventTriggeredThisRound = false;
+  room.currentSession.currentEvent = null;
 
   room.players.forEach((player) => {
     room.currentSession.playerStates[player.id].hasActedThisRound = false;
-    room.currentSession.playerStates[player.id].hasConfirmedEvent = false;
+    room.currentSession.playerStates[player.id].hasSubmittedEventChoice = false;
   });
 
   broadcastRoom(room);
@@ -510,7 +530,7 @@ roomsRouter.post("/rooms/:roomId/session/act", (req, res) => {
   });
 });
 
-roomsRouter.post("/rooms/:roomId/session/resolve-event", (req, res) => {
+roomsRouter.get("/rooms/:roomId/session/event-choice", (req, res) => {
   const room = getRoomOr404(req.params.roomId, res);
 
   if (!room) return;
@@ -521,15 +541,68 @@ roomsRouter.post("/rooms/:roomId/session/resolve-event", (req, res) => {
     });
   }
 
-  if (room.currentSession.phase !== "waiting_for_event_resolution") {
+  if (room.currentSession.phase !== "waiting_for_event_choices") {
     return res.status(409).json({
-      message: "現在はイベント確認を受け付ける段階ではありません。",
+      message: "現在はイベント選択を受け付ける段階ではありません。",
     });
   }
 
-  if (!room.currentSession.eventTriggeredThisRound) {
+  if (!room.currentSession.currentEvent) {
     return res.status(409).json({
-      message: "このラウンドで処理待ちのイベントはありません。",
+      message: "このラウンドで選択中のイベントはありません。",
+    });
+  }
+
+  const playerId =
+    typeof req.query.playerId === "string" ? req.query.playerId : null;
+
+  if (!playerId) {
+    return res.status(400).json({ message: "playerId は必須です。" });
+  }
+
+  const player = getPlayer(room, playerId);
+
+  if (!player) {
+    return res.status(404).json({ message: "プレイヤーが見つかりません。" });
+  }
+
+  const segment = getPlayerEventSegment(room.currentSession.currentEvent, playerId);
+
+  if (!segment) {
+    return res.status(404).json({ message: "担当イベント区間が見つかりません。" });
+  }
+
+  return res.status(200).json({
+    eventChoice: {
+      order: segment.order,
+      from: segment.from,
+      options: buildEventChoiceOptions(segment),
+      hasSubmittedChoice:
+        room.currentSession.playerStates[playerId].hasSubmittedEventChoice,
+    },
+  });
+});
+
+roomsRouter.post("/rooms/:roomId/session/event-choice", (req, res) => {
+  const room = getRoomOr404(req.params.roomId, res);
+
+  if (!room) return;
+
+  if (room.currentSession.status !== "in_progress") {
+    return res.status(409).json({
+      message: "セッション進行中ではありません。",
+    });
+  }
+
+  if (room.currentSession.phase !== "waiting_for_event_choices") {
+    return res.status(409).json({
+      message: "現在はイベント選択を受け付ける段階ではありません。",
+    });
+  }
+
+  if (!room.currentSession.currentEvent) {
+    return res.status(409).json({
+      message: "このラウンドで選択中のイベントはありません。",
     });
   }
 
@@ -540,6 +613,14 @@ roomsRouter.post("/rooms/:roomId/session/resolve-event", (req, res) => {
     return res.status(404).json({ message: "プレイヤーが見つかりません。" });
   }
 
+  const direction = parseEventDirection(req.body?.direction);
+
+  if (!direction) {
+    return res.status(400).json({
+      message: "direction は clockwise または counterclockwise を指定してください。",
+    });
+  }
+
   const playerState = getPlayerState(room.currentSession, playerId);
 
   if (!playerState) {
@@ -548,24 +629,44 @@ roomsRouter.post("/rooms/:roomId/session/resolve-event", (req, res) => {
     });
   }
 
-  if (playerState.hasConfirmedEvent) {
+  if (playerState.hasSubmittedEventChoice) {
     return res.status(409).json({
-      message: "このラウンドのイベント確認は完了しています。",
+      message: "このラウンドのイベント選択は完了しています。",
     });
   }
 
-  playerState.hasConfirmedEvent = true;
+  const segment = getPlayerEventSegment(room.currentSession.currentEvent, playerId);
 
-  if (haveAllPlayersConfirmedEvent(room)) {
+  if (!segment) {
+    return res.status(404).json({ message: "担当イベント区間が見つかりません。" });
+  }
+
+  room.currentSession.currentEvent.segments = room.currentSession.currentEvent.segments.map(
+    (currentSegment) => {
+      if (currentSegment.assignedPlayerId !== playerId) return currentSegment;
+      return resolveEventSegmentChoice(currentSegment, direction);
+    },
+  );
+  playerState.hasSubmittedEventChoice = true;
+
+  if (haveAllPlayersSubmittedEventChoice(room)) {
+    room.currentSession.currentEvent.resolvedTimeline = buildResolvedTimeline(
+      room.currentSession.currentEvent,
+    );
+    room.currentSession.currentDrawnNumber =
+      room.currentSession.currentEvent.goalNumber;
+    room.currentSession.drawnNumbers = [
+      ...room.currentSession.drawnNumbers,
+      room.currentSession.currentEvent.goalNumber,
+    ];
     room.currentSession.eventGauge = 0;
-    room.currentSession.eventTriggeredThisRound = false;
     room.currentSession.phase = "waiting_for_player_actions";
   }
 
   broadcastRoom(room);
 
   return res.status(200).json({
-    message: "イベント確認を受け付けました。",
+    message: "イベント選択を受け付けました。",
     room: buildRoomResponse(room).room,
     player: buildPlayerResponse(room, player),
   });

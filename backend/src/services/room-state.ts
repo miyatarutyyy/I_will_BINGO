@@ -22,7 +22,7 @@ export const createPlayerSessionState = (): PlayerSessionState => {
     card: null,
     isReadyForStart: false,
     hasActedThisRound: false,
-    hasConfirmedEvent: false,
+    hasSubmittedEventChoice: false,
   };
 };
 
@@ -36,7 +36,7 @@ const createInitialSession = (players: Player[]): GameSession => {
     drawnNumbers: [],
     eventGauge: 0,
     eventGaugeMax: 0,
-    eventTriggeredThisRound: false,
+    currentEvent: null,
     endReason: null,
     winners: [],
     endCondition: createDefaultEndCondition(),
@@ -96,10 +96,10 @@ export const haveAllPlayersActed = (room: Room): boolean => {
   });
 };
 
-export const haveAllPlayersConfirmedEvent = (room: Room): boolean => {
+export const haveAllPlayersSubmittedEventChoice = (room: Room): boolean => {
   return room.players.every((player) => {
     const state = room.currentSession.playerStates[player.id];
-    return state.hasConfirmedEvent;
+    return state.hasSubmittedEventChoice;
   });
 };
 

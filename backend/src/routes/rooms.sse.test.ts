@@ -71,10 +71,14 @@ const actPlayer = async (roomId: string, playerId: string) => {
   expect(response.status).toBe(200);
 };
 
-const resolveEvent = async (roomId: string, playerId: string) => {
+const submitEventChoice = async (
+  roomId: string,
+  playerId: string,
+  direction: "clockwise" | "counterclockwise",
+) => {
   const response = await request(app)
-    .post(`/rooms/${roomId}/session/resolve-event`)
-    .send({ playerId });
+    .post(`/rooms/${roomId}/session/event-choice`)
+    .send({ playerId, direction });
 
   expect(response.status).toBe(200);
 };
@@ -120,12 +124,12 @@ describe.sequential("roomsRouter SSE", () => {
       Object.values(updatedRoom.currentSession.playerStates).every(
         (state) =>
           state.hasActedThisRound === false &&
-          state.hasConfirmedEvent === false,
+          state.hasSubmittedEventChoice === false,
       ),
     ).toBe(true);
   });
 
-  it("resolve-event 成功時に room_updated 用の broadcastRoom を呼ぶ", async () => {
+  it("event-choice 成功時に room_updated 用の broadcastRoom を呼ぶ", async () => {
     const { roomId, hostPlayerId } = await createRoom();
     const guestPlayerId = await joinRoom(roomId);
 
@@ -150,15 +154,15 @@ describe.sequential("roomsRouter SSE", () => {
 
     broadcastRoomMock.mockClear();
 
-    await resolveEvent(roomId, hostPlayerId);
+    await submitEventChoice(roomId, hostPlayerId, "clockwise");
 
     expect(broadcastRoomMock).toHaveBeenCalledTimes(1);
 
     const [updatedRoom] = broadcastRoomMock.mock.calls[0];
 
-    expect(updatedRoom.currentSession.phase).toBe("waiting_for_event_resolution");
+    expect(updatedRoom.currentSession.phase).toBe("waiting_for_event_choices");
     expect(
-      updatedRoom.currentSession.playerStates[hostPlayerId].hasConfirmedEvent,
+      updatedRoom.currentSession.playerStates[hostPlayerId].hasSubmittedEventChoice,
     ).toBe(true);
   });
 });
