@@ -50,6 +50,10 @@ const writeStoredValue = (key: string, value: string) => {
   window.sessionStorage.setItem(key, value);
 };
 
+type StartupRequestType = "create" | "join" | null;
+const STARTUP_MODAL_DELAY_MS = 400;
+const STARTUP_REQUEST_TIMEOUT_MS = 60000;
+
 const App = () => {
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -70,6 +74,10 @@ const App = () => {
     useState<PendingRoomDraft | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [startupRequestType, setStartupRequestType] =
+    useState<StartupRequestType>(null);
+  const [isStartupModalVisible, setIsStartupModalVisible] = useState(false);
+  const [isStartupRequestDelayed, setIsStartupRequestDelayed] = useState(false);
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState<NoticeTone>("neutral");
   const [syncStatus, setSyncStatus] = useState("offline");
@@ -114,6 +122,8 @@ const App = () => {
     (noticeTone !== "success" || notice === "ルームIDをコピーしました。");
   const shouldWarnOnPageExit =
     room !== null || pendingRoomDraft !== null || isBootstrapping;
+  const isStartupModalOpen =
+    startupRequestType !== null && isStartupModalVisible;
 
   useEffect(() => {
     writeStoredValue(STORAGE_KEYS.playerName, playerName);
@@ -403,7 +413,17 @@ const App = () => {
     }
 
     setIsBusy(true);
+    setStartupRequestType("create");
+    setIsStartupModalVisible(false);
+    setIsStartupRequestDelayed(false);
     setNotice("");
+    const modalDelayId = window.setTimeout(() => {
+      setIsStartupModalVisible(true);
+    }, STARTUP_MODAL_DELAY_MS);
+    const timeoutId = window.setTimeout(() => {
+      setIsStartupModalVisible(true);
+      setIsStartupRequestDelayed(true);
+    }, STARTUP_REQUEST_TIMEOUT_MS);
 
     try {
       const payload = await handleApiRequest("/rooms", {
@@ -427,7 +447,12 @@ const App = () => {
       );
       setNoticeTone("error");
     } finally {
+      window.clearTimeout(modalDelayId);
+      window.clearTimeout(timeoutId);
       setIsBusy(false);
+      setIsStartupModalVisible(false);
+      setIsStartupRequestDelayed(false);
+      setStartupRequestType(null);
     }
   };
 
@@ -508,7 +533,17 @@ const App = () => {
     }
 
     setIsBusy(true);
+    setStartupRequestType("join");
+    setIsStartupModalVisible(false);
+    setIsStartupRequestDelayed(false);
     setNotice("");
+    const modalDelayId = window.setTimeout(() => {
+      setIsStartupModalVisible(true);
+    }, STARTUP_MODAL_DELAY_MS);
+    const timeoutId = window.setTimeout(() => {
+      setIsStartupModalVisible(true);
+      setIsStartupRequestDelayed(true);
+    }, STARTUP_REQUEST_TIMEOUT_MS);
 
     try {
       const payload = await handleApiRequest(`/rooms/${trimmedRoomId}/join`, {
@@ -531,7 +566,12 @@ const App = () => {
       );
       setNoticeTone("error");
     } finally {
+      window.clearTimeout(modalDelayId);
+      window.clearTimeout(timeoutId);
       setIsBusy(false);
+      setIsStartupModalVisible(false);
+      setIsStartupRequestDelayed(false);
+      setStartupRequestType(null);
     }
   };
 
@@ -802,6 +842,35 @@ const App = () => {
     <div className="app-shell">
       {shouldShowNotice ? (
         <div className={`notice-banner is-visible ${noticeTone}`}>{notice}</div>
+      ) : null}
+
+      {isStartupModalOpen ? (
+        <div className="modal-overlay startup-modal-overlay" role="presentation">
+          <section
+            className="title-modal startup-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="startup-modal-heading"
+            aria-live="polite"
+          >
+            <div className="startup-spinner" aria-hidden="true" />
+            <h2 id="startup-modal-heading">
+              サーバーを起動しています
+            </h2>
+            <div className="startup-modal-copy-marquee" aria-hidden="true">
+              <p className="startup-modal-copy">
+                無料ホスティングの仕様上、30〜60秒ほどサーバー起動に時間がかかる場合があります。この画面のままお待ちください。
+              </p>
+            </div>
+            <p className="startup-modal-status">
+              {isStartupRequestDelayed
+                ? "起動に時間がかかっています。時間をおいて再試行してください。"
+                : startupRequestType === "create"
+                ? "ルームを作成しています..."
+                : "ルームに参加しています..."}
+            </p>
+          </section>
+        </div>
       ) : null}
 
       {isBootstrapping && (
